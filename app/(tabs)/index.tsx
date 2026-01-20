@@ -1,5 +1,6 @@
 // app/(tabs)/index.tsx - Home Dashboard
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const { t, language } = useTranslation();
   const { colors } = useTheme();
   const [greeting, setGreeting] = useState('');
+  const [userName, setUserName] = useState('');
   const [lastEntry, setLastEntry] = useState<JournalEntry | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -48,8 +50,18 @@ export default function HomeScreen() {
     useCallback(() => {
       loadData();
       updateGreeting();
+      loadUserName();
     }, [language])
   );
+
+  async function loadUserName() {
+    try {
+      const name = await AsyncStorage.getItem('@user_name');
+      if (name) setUserName(name);
+    } catch (e) {
+      console.error('Error loading user name:', e);
+    }
+  }
 
   function updateGreeting() {
     const hour = new Date().getHours();
@@ -136,7 +148,9 @@ export default function HomeScreen() {
         {/* Header with Logo */}
         <Animated.View entering={FadeInDown.delay(100).duration(500)} style={styles.headerRow}>
           <View style={styles.headerText}>
-            <Text style={[styles.greeting, { color: colors.textMuted }]}>{greeting}</Text>
+            <Text style={[styles.greeting, { color: colors.textMuted }]}>
+              {userName ? `${greeting}, ${userName}` : greeting}
+            </Text>
             <Text style={[styles.prompt, { color: colors.text }]}>{t('home.ready_prompt')}</Text>
           </View>
           <UnbindLogo size={40} animation="breathing" />

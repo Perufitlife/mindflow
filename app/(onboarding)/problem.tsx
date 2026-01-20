@@ -117,7 +117,7 @@ export default function ProblemScreen() {
   return (
     <View style={styles.container}>
       {/* Progress Bar */}
-      <OnboardingProgressBar currentStep={1} totalSteps={4} />
+      <OnboardingProgressBar currentStep={1} totalSteps={6} />
 
       {/* Animated Head Icon with floating thought bubbles */}
       <Animated.View

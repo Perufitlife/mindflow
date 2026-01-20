@@ -65,12 +65,12 @@ export default function PersonalizeScreen() {
       // Mark that user is in "first session" mode (not fully onboarded yet)
       // They'll complete onboarding after first session + trial acceptance
       
-      // Navigate directly to record screen for first session
-      router.replace('/(tabs)/record');
+      // Navigate to notifications screen (then commitment)
+      router.push('/(onboarding)/notifications');
     } catch (error) {
       console.error('Error in personalize:', error);
       // Still proceed even if there's an error
-      router.replace('/(tabs)/record');
+      router.push('/(onboarding)/notifications');
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +79,7 @@ export default function PersonalizeScreen() {
   return (
     <View style={styles.container}>
       {/* Progress Bar */}
-      <OnboardingProgressBar currentStep={4} totalSteps={4} />
+      <OnboardingProgressBar currentStep={4} totalSteps={6} />
 
       <ScrollView 
         style={styles.scrollView} 
@@ -98,7 +98,7 @@ export default function PersonalizeScreen() {
 
         {/* Question 1: Challenge */}
         <Animated.View entering={FadeInUp.delay(200).duration(500)}>
-          <Text style={styles.questionLabel}>QUESTION 1 OF 2</Text>
+          <Text style={styles.questionLabel}>YOUR CHALLENGE</Text>
           <Text style={styles.questionTitle}>What's your biggest challenge?</Text>
           
           <View style={styles.optionsGrid}>
@@ -142,7 +142,7 @@ export default function PersonalizeScreen() {
 
         {/* Question 2: Time */}
         <Animated.View entering={FadeInUp.delay(500).duration(500)} style={styles.question2}>
-          <Text style={styles.questionLabel}>QUESTION 2 OF 2</Text>
+          <Text style={styles.questionLabel}>YOUR ROUTINE</Text>
           <Text style={styles.questionTitle}>When would you like to journal?</Text>
           
           <View style={styles.timeOptions}>

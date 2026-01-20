@@ -1,11 +1,19 @@
-// app/processing.tsx
+// app/processing.tsx - Enhanced with visible processing phases
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
+  FadeIn,
+  FadeInUp,
+  FadeOut,
+  SlideInRight,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import * as Sentry from 'sentry-expo';
@@ -17,6 +25,21 @@ import posthog from '../posthog';
 
 type ProcessingStep = 'transcribing' | 'analyzing' | 'done' | 'error' | 'limit_reached' | 'trial_expired';
 
+// Processing phases for better UX
+interface ProcessingPhase {
+  id: number;
+  icon: string;
+  label: string;
+  sublabel: string;
+}
+
+const PROCESSING_PHASES: ProcessingPhase[] = [
+  { id: 1, icon: 'ear', label: 'Listening to your thoughts...', sublabel: 'Converting speech to text' },
+  { id: 2, icon: 'bulb', label: 'Understanding your blockers...', sublabel: 'Analyzing what\'s holding you back' },
+  { id: 3, icon: 'list', label: 'Creating your action plan...', sublabel: 'Generating personalized tasks' },
+  { id: 4, icon: 'rocket', label: 'Almost ready!', sublabel: 'Finalizing your session' },
+];
+
 export default function ProcessingScreen() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -25,19 +48,46 @@ export default function ProcessingScreen() {
   const [step, setStep] = useState<ProcessingStep>('transcribing');
   const [error, setError] = useState<string | null>(null);
   const [limitInfo, setLimitInfo] = useState<{ sessionsToday: number; maxSessions: number } | null>(null);
+  const [currentPhase, setCurrentPhase] = useState(0);
 
   // Animation for the pulsing dot
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0.6);
+  const phaseProgress = useSharedValue(0);
 
   useEffect(() => {
     scale.value = withRepeat(withTiming(1.2, { duration: 800 }), -1, true);
     opacity.value = withRepeat(withTiming(1, { duration: 800 }), -1, true);
+    
+    // Start phase animation
+    startPhaseAnimation();
   }, []);
+
+  const startPhaseAnimation = () => {
+    // Progress through phases for visual feedback
+    const phaseInterval = setInterval(() => {
+      setCurrentPhase(prev => {
+        const next = prev + 1;
+        if (next < PROCESSING_PHASES.length) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          phaseProgress.value = withTiming((next + 1) / PROCESSING_PHASES.length, { duration: 300 });
+          return next;
+        }
+        return prev;
+      });
+    }, 2500);
+
+    // Clean up
+    return () => clearInterval(phaseInterval);
+  };
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
+  }));
+
+  const progressBarStyle = useAnimatedStyle(() => ({
+    width: `${phaseProgress.value * 100}%`,
   }));
 
   useEffect(() => {
@@ -84,6 +134,7 @@ export default function ProcessingScreen() {
           summary: result.analysis.summary,
           blocker: result.analysis.blocker,
           mood: result.analysis.mood,
+          insight: result.analysis.insight || '', // NEW: Coach insight
           tasks: JSON.stringify(result.analysis.tasks),
           sessionId: result.sessionId || '',
         },
@@ -166,26 +217,67 @@ export default function ProcessingScreen() {
           </View>
         )}
 
-        <Text style={[styles.stepText, { color: colors.text }]}>{getStepText()}</Text>
-        <Text style={[styles.subText, { color: colors.textMuted }]}>{getStepSubtext()}</Text>
-
-        {/* Progress indicators */}
+        {/* Enhanced Phase Display */}
         {step !== 'error' && step !== 'limit_reached' && step !== 'trial_expired' && (
-          <View style={styles.progressContainer}>
-            <View style={[styles.progressDot, { backgroundColor: colors.border }, styles.progressDotActive, { backgroundColor: colors.primary }]} />
-            <View
+          <Animated.View entering={FadeInUp.delay(200).duration(400)} style={styles.phaseContainer}>
+            {PROCESSING_PHASES.map((phase, index) => (
+              <Animated.View
+                key={phase.id}
+                entering={index === currentPhase ? SlideInRight.duration(300) : undefined}
+                style={[
+                  styles.phaseItem,
+                  index === currentPhase && styles.phaseItemActive,
+                  index < currentPhase && styles.phaseItemComplete,
+                ]}
+              >
+                <View style={[
+                  styles.phaseIcon,
+                  { backgroundColor: index <= currentPhase ? colors.primary + '20' : colors.border + '50' }
+                ]}>
+                  <Ionicons 
+                    name={index < currentPhase ? 'checkmark' : phase.icon as any} 
+                    size={20} 
+                    color={index <= currentPhase ? colors.primary : colors.textMuted} 
+                  />
+                </View>
+                <View style={styles.phaseContent}>
+                  <Text style={[
+                    styles.phaseLabel,
+                    { color: index === currentPhase ? colors.text : colors.textMuted }
+                  ]}>
+                    {phase.label}
+                  </Text>
+                  {index === currentPhase && (
+                    <Animated.Text 
+                      entering={FadeIn.duration(200)}
+                      style={[styles.phaseSublabel, { color: colors.textMuted }]}
+                    >
+                      {phase.sublabel}
+                    </Animated.Text>
+                  )}
+                </View>
+              </Animated.View>
+            ))}
+          </Animated.View>
+        )}
+
+        {/* Fallback text for non-phase states */}
+        {(step === 'error' || step === 'limit_reached' || step === 'trial_expired') && (
+          <>
+            <Text style={[styles.stepText, { color: colors.text }]}>{getStepText()}</Text>
+            <Text style={[styles.subText, { color: colors.textMuted }]}>{getStepSubtext()}</Text>
+          </>
+        )}
+
+        {/* Progress Bar */}
+        {step !== 'error' && step !== 'limit_reached' && step !== 'trial_expired' && (
+          <View style={styles.progressBarContainer}>
+            <Animated.View 
               style={[
-                styles.progressDot,
-                { backgroundColor: colors.border },
-                (step === 'analyzing' || step === 'done') && { backgroundColor: colors.primary },
-              ]}
-            />
-            <View
-              style={[
-                styles.progressDot,
-                { backgroundColor: colors.border },
-                step === 'done' && { backgroundColor: colors.primary },
-              ]}
+                styles.progressBarFill, 
+                { backgroundColor: colors.primary },
+                progressBarStyle
+              ]} 
             />
           </View>
         )}
@@ -338,5 +430,61 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#6B7280',
     fontSize: 15,
+  },
+  // Phase Display Styles
+  phaseContainer: {
+    width: '100%',
+    paddingHorizontal: 24,
+    marginTop: 32,
+    gap: 16,
+  },
+  phaseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    backgroundColor: 'transparent',
+    borderRadius: 14,
+    gap: 16,
+  },
+  phaseItemActive: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  phaseItemComplete: {
+    opacity: 0.5,
+  },
+  phaseIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  phaseContent: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  phaseLabel: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  phaseSublabel: {
+    fontSize: 14,
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  progressBarContainer: {
+    width: '80%',
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    marginTop: 32,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
   },
 });

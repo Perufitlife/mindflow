@@ -86,3 +86,80 @@ Start your free trial today and unbind your potential!`,
 // Export individual constants for easy access
 export const APP_NAME = BRAND.name;
 export const COLORS = BRAND.colors;
+
+// Typography System - Emotional hierarchy for better conversion
+export const TYPOGRAPHY = {
+  // Hero headlines - Maximum emotional impact
+  emotionalHeadline: {
+    fontSize: 32,
+    fontWeight: '800' as const,
+    letterSpacing: -0.5,
+    lineHeight: 40,
+    color: '#111827',
+  },
+  
+  // Section titles - Strong but not overpowering
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    letterSpacing: -0.3,
+    lineHeight: 32,
+    color: '#111827',
+  },
+  
+  // Emphasis text - Highlighted words within paragraphs
+  emphasisText: {
+    fontWeight: '700' as const,
+    color: BRAND.colors.primary,
+  },
+  
+  // Soft body text - Easy to read, doesn't compete
+  softBody: {
+    fontSize: 17,
+    fontWeight: '400' as const,
+    letterSpacing: 0.2,
+    lineHeight: 26,
+    color: '#6B7280',
+  },
+  
+  // Card titles
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    letterSpacing: 0,
+    lineHeight: 24,
+    color: '#111827',
+  },
+  
+  // Small labels - Subtle context
+  label: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase' as const,
+    color: BRAND.colors.primary,
+  },
+  
+  // CTA buttons - Clear action
+  ctaText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    letterSpacing: 0.3,
+  },
+  
+  // Stats/Numbers - Draw attention
+  statNumber: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    letterSpacing: -0.5,
+    color: '#111827',
+  },
+  
+  // Subtle hints
+  hint: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    color: '#9CA3AF',
+    lineHeight: 20,
+  },
+} as const;

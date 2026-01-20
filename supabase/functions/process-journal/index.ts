@@ -18,10 +18,17 @@ interface MicroTask {
   completed: boolean;
 }
 
+interface UserContext {
+  challenge: string;
+  timeOfDay: string;
+  hourContext: string;
+}
+
 interface JournalAnalysis {
   summary: string;
   blocker: string;
   mood: string;
+  insight: string; // NEW: Personal coach observation
   tasks: MicroTask[];
 }
 
@@ -132,7 +139,14 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { audioBase64, language = 'en' } = await req.json();
+    const { audioBase64, language = 'en', userContext } = await req.json();
+    
+    // Default user context if not provided
+    const context: UserContext = userContext || {
+      challenge: 'general productivity',
+      timeOfDay: 'day',
+      hourContext: 'during their day',
+    };
 
     if (!audioBase64) {
       return new Response(
@@ -198,36 +212,41 @@ serve(async (req) => {
     console.log('Transcription complete, length:', transcript.length);
 
     // Step 2: Analyze with GPT-4o-mini
-    console.log('Analyzing transcript...');
-    const systemPrompt = `You are a productivity coach specialized in beating procrastination. Your job is to help people turn their scattered thoughts into immediate action.
+    console.log('Analyzing transcript with context:', context);
+    const systemPrompt = `You are a premium productivity coach specialized in helping people with ${context.challenge}. The user is ${context.hourContext} (${context.timeOfDay}).
 
-Analyze the user's voice journal and extract:
+Analyze their voice journal and provide PERSONALIZED guidance:
 
-1. Summary: What they're thinking about (2 sentences max)
-2. Blocker: The main thing stopping them from being productive right now (1 sentence)
+1. Summary: What they're dealing with (2 sentences, acknowledge their specific struggle with ${context.challenge})
+2. Blocker: The REAL underlying blocker - dig deeper than the surface (1 sentence)
 3. Mood: Their emotional state in one word
-4. Micro-tasks: EXACTLY 3 specific tasks they can complete in 10-30 minutes each
+4. Insight: A coach's observation that makes them feel TRULY understood. Notice patterns, word choices, or hidden feelings. Examples:
+   - "You mentioned 'should' 3 times - that pressure might be part of the problem"
+   - "It sounds like you're not lacking time, you're lacking clarity on where to start"
+   - "The real issue isn't the task, it's the fear of not doing it perfectly"
+5. Micro-tasks: EXACTLY 3 tasks with this structure:
+   - Task 1 (STARTER): 2-5 minutes, ZERO friction, can do RIGHT NOW without getting up. Examples: "Write 3 bullet points", "Set a 5-min timer and just brainstorm", "Text one person about X"
+   - Task 2 (BUILDER): 10-15 minutes, builds on Task 1
+   - Task 3 (MOMENTUM): 15-25 minutes, the "real" work but feels achievable after completing 1 & 2
 
-CRITICAL RULES FOR MICRO-TASKS:
-- Each task must be actionable RIGHT NOW, not later today or tomorrow
-- Each task must take between 10-30 minutes (specify the duration)
-- Tasks must be ULTRA-SPECIFIC: not "work on project" but "write the first paragraph of the project intro"
-- Tasks must be the SMALLEST possible first step to overcome the blocker
-- Focus on quick wins that build momentum
-- Break down any vague task into a concrete, measurable action
-- The goal is to beat procrastination with tiny, immediate actions
+CRITICAL RULES:
+- Task 1 must be SO EASY they'd feel silly not doing it (the "just get started" trigger)
+- All tasks must address their specific ${context.challenge} issue
+- Be ULTRA-SPECIFIC: "Open Google Docs and write the first sentence of the intro" not "work on document"
+- Acknowledge their ${context.timeOfDay} energy level (morning = fresh start, evening = wind down, night = be gentle)
 
 IMPORTANT: Respond in the SAME LANGUAGE as the user's input.
 
 Respond ONLY with valid JSON (no markdown, no code blocks):
 {
-  "summary": "Brief summary of what's on their mind",
-  "blocker": "The main thing blocking their productivity",
-  "mood": "one word mood",
+  "summary": "Personalized summary acknowledging their ${context.challenge}",
+  "blocker": "The deeper, real blocker",
+  "mood": "one word",
+  "insight": "A powerful observation that makes them feel understood",
   "tasks": [
-    { "id": "1", "title": "Specific 10-30 min task", "duration": 15, "completed": false },
-    { "id": "2", "title": "Specific 10-30 min task", "duration": 20, "completed": false },
-    { "id": "3", "title": "Specific 10-30 min task", "duration": 10, "completed": false }
+    { "id": "1", "title": "2-5 min STARTER task - zero friction", "duration": 3, "completed": false },
+    { "id": "2", "title": "10-15 min BUILDER task", "duration": 12, "completed": false },
+    { "id": "3", "title": "15-25 min MOMENTUM task", "duration": 20, "completed": false }
   ]
 }`;
 

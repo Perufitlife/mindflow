@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -14,6 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+// URLs for legal documents (update with your actual domain)
+const PRIVACY_URL = 'https://unbindapp.com/privacy';
+const TERMS_URL = 'https://unbindapp.com/terms';
 import { trackSignUp } from '../../services/analytics';
 import { signInWithApple, signUp } from '../../services/auth';
 
@@ -192,8 +197,13 @@ export default function SignupScreen() {
         {/* Terms */}
         <Text style={styles.terms}>
           By signing up, you agree to our{' '}
-          <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-          <Text style={styles.termsLink}>Privacy Policy</Text>
+          <Text style={styles.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>
+            Terms of Service
+          </Text>{' '}
+          and{' '}
+          <Text style={styles.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
+            Privacy Policy
+          </Text>
         </Text>
 
         {/* Footer */}

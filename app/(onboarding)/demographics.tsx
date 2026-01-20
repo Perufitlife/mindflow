@@ -5,11 +5,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
@@ -78,17 +80,23 @@ export default function DemographicsScreen() {
     });
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Progress Bar - Step 3 of 4 now */}
-      <OnboardingProgressBar currentStep={3} totalSteps={4} />
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+  return (
+    <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+      <View style={styles.container}>
+        {/* Progress Bar - Step 3 of 6 */}
+        <OnboardingProgressBar currentStep={3} totalSteps={6} />
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* Back button */}
         <Animated.View entering={FadeInUp.delay(100).duration(500)}>
           <TouchableOpacity
@@ -211,7 +219,8 @@ export default function DemographicsScreen() {
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </Animated.View>
-    </View>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 

@@ -1,6 +1,8 @@
 // app/output.tsx - Output Screen with Task Management
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView,
@@ -9,7 +11,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withDelay, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import * as Sentry from 'sentry-expo';
+import Confetti from '../components/Confetti';
 import TaskChecklist from '../components/TaskChecklist';
 import UnbindLogo from '../components/UnbindLogo';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,6 +22,7 @@ import { trackTaskCompleted, trackTaskAdded, trackTaskRemoved } from '../service
 import { MicroTask } from '../services/openai';
 import { saveEntry, updateEntry } from '../services/storage';
 import { incrementSessionCount, shouldShowPaywall, hasCompletedOnboarding } from '../services/user';
+import posthog from '../posthog';
 
 export default function OutputScreen() {
   const router = useRouter();
@@ -29,11 +34,32 @@ export default function OutputScreen() {
     blocker?: string;
     mood?: string;
     tasks?: string;
+    insight?: string; // NEW: Coach insight
   }>();
 
   const [saved, setSaved] = useState(false);
   const [tasks, setTasks] = useState<MicroTask[]>([]);
   const [entryId, setEntryId] = useState<string | null>(null);
+  const [userName, setUserName] = useState('');
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showFirstTaskCTA, setShowFirstTaskCTA] = useState(true);
+  
+  // Animation values
+  const celebrationScale = useSharedValue(0.5);
+  const celebrationOpacity = useSharedValue(0);
+
+  // Load user name
+  useEffect(() => {
+    async function loadUserName() {
+      try {
+        const name = await AsyncStorage.getItem('@user_name');
+        if (name) setUserName(name);
+      } catch (e) {
+        console.error('Error loading user name:', e);
+      }
+    }
+    loadUserName();
+  }, []);
 
   // Parse tasks from params
   useEffect(() => {
@@ -70,6 +96,18 @@ export default function OutputScreen() {
       setEntryId(entry.id);
       await incrementSessionCount();
       setSaved(true);
+
+      // Trigger celebration
+      setShowConfetti(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      celebrationScale.value = withSequence(
+        withSpring(1.2, { damping: 4 }),
+        withSpring(1, { damping: 6 })
+      );
+      celebrationOpacity.value = withTiming(1, { duration: 300 });
+      
+      // Track
+      posthog.capture('output_celebration_shown');
 
       Sentry.Native.addBreadcrumb({
         message: 'Journal entry saved',
@@ -125,9 +163,9 @@ export default function OutputScreen() {
       const onboardingDone = await hasCompletedOnboarding();
       
       if (!onboardingDone) {
-        // First session - go to commitment screen, then paywall
+        // First session - go directly to paywall (commitment was already done in onboarding)
         router.replace({
-          pathname: '/(onboarding)/commit',
+          pathname: '/(onboarding)/paywall',
           params: {
             transcript: params.transcript || '',
             tasks: params.tasks || '[]',
@@ -175,17 +213,41 @@ export default function OutputScreen() {
 
   const totalTime = tasks.reduce((sum, t) => sum + t.duration, 0);
 
+  // Celebration animation style
+  const celebrationStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: celebrationScale.value }],
+    opacity: celebrationOpacity.value,
+  }));
+
+  const handleStartFirstTask = () => {
+    if (tasks.length > 0) {
+      const firstTask = tasks[0];
+      posthog.capture('first_task_started', { 
+        task_id: firstTask.id,
+        duration: firstTask.duration,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowFirstTaskCTA(false);
+      // Could navigate to a focus timer screen if implemented
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Confetti Celebration */}
+      <Confetti isActive={showConfetti} count={60} duration={3500} />
+      
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Header with Success Animation */}
-        <View style={styles.header}>
+        <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>{t('output.your_session')}</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>
+              {userName ? `Great work, ${userName}!` : t('output.your_session')}
+            </Text>
             <Text style={[styles.headerDate, { color: colors.textMuted }]}>
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
@@ -195,15 +257,62 @@ export default function OutputScreen() {
             </Text>
           </View>
           <UnbindLogo size={40} animation="success" showGlow />
-        </View>
+        </Animated.View>
+
+        {/* Celebration Card */}
+        {saved && (
+          <Animated.View style={[styles.celebrationCard, celebrationStyle]}>
+            <Text style={styles.celebrationEmoji}>🎉</Text>
+            <Text style={styles.celebrationText}>
+              In just 2 minutes, you created {tasks.length} actionable tasks!
+            </Text>
+            <Text style={styles.celebrationSubtext}>
+              That's what usually takes 30 minutes of planning
+            </Text>
+          </Animated.View>
+        )}
+
+        {/* First Task CTA */}
+        {showFirstTaskCTA && tasks.length > 0 && !tasks[0].completed && (
+          <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.firstTaskCTA}>
+            <View style={styles.firstTaskHeader}>
+              <Ionicons name="rocket" size={24} color="#10B981" />
+              <Text style={styles.firstTaskTitle}>Ready to start?</Text>
+            </View>
+            <Text style={styles.firstTaskDescription}>
+              Your first task only takes {tasks[0].duration} minutes
+            </Text>
+            <TouchableOpacity style={styles.firstTaskButton} onPress={handleStartFirstTask}>
+              <Ionicons name="play" size={18} color="#FFFFFF" />
+              <Text style={styles.firstTaskButtonText}>Start now</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Mood Card */}
-        <View style={[styles.moodCard, { backgroundColor: colors.primaryLight }]}>
-          <Text style={styles.moodEmoji}>{getMoodEmoji(params.mood || '')}</Text>
-          <View style={styles.moodTextContainer}>
-            <Text style={[styles.moodText, { color: colors.text }]}>{params.mood || 'Processing...'}</Text>
+        <Animated.View entering={FadeIn.delay(200).duration(500)}>
+          <View style={[styles.moodCard, { backgroundColor: colors.primaryLight }]}>
+            <Text style={styles.moodEmoji}>{getMoodEmoji(params.mood || '')}</Text>
+            <View style={styles.moodTextContainer}>
+              <Text style={[styles.moodText, { color: colors.text }]}>{params.mood || 'Processing...'}</Text>
+            </View>
           </View>
-        </View>
+        </Animated.View>
+
+        {/* Insight Card - Premium Coach Observation */}
+        {params.insight && (
+          <Animated.View entering={FadeIn.delay(300).duration(500)}>
+            <View style={[styles.insightCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+              <View style={styles.insightHeader}>
+                <View style={styles.insightIconContainer}>
+                  <Ionicons name="sparkles" size={18} color={colors.primary} />
+                </View>
+                <Text style={[styles.insightLabel, { color: colors.primary }]}>Coach Insight</Text>
+              </View>
+              <Text style={[styles.insightText, { color: colors.text }]}>"{params.insight}"</Text>
+            </View>
+          </Animated.View>
+        )}
 
         {/* Blocker Card */}
         {params.blocker && (
@@ -324,6 +433,42 @@ const styles = StyleSheet.create({
     color: '#111827',
     textTransform: 'capitalize',
   },
+  // Insight Card Styles (Premium Coach)
+  insightCard: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  insightIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  insightLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  insightText: {
+    fontSize: 16,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    lineHeight: 24,
+    color: '#374151',
+  },
   blockerCard: {
     backgroundColor: '#FEF2F2',
     borderRadius: 16,
@@ -425,6 +570,73 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Celebration Card Styles
+  celebrationCard: {
+    backgroundColor: '#D1FAE5',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  celebrationEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  celebrationText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#065F46',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  celebrationSubtext: {
+    fontSize: 14,
+    color: '#047857',
+    textAlign: 'center',
+  },
+  // First Task CTA Styles
+  firstTaskCTA: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    borderStyle: 'dashed',
+  },
+  firstTaskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  firstTaskTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  firstTaskDescription: {
+    fontSize: 15,
+    color: '#047857',
+    marginBottom: 16,
+  },
+  firstTaskButton: {
+    flexDirection: 'row',
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  firstTaskButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',

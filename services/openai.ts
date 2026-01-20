@@ -1,4 +1,5 @@
 // services/openai.ts - Uses Supabase Edge Function
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { SUPABASE_URL } from '../config/supabase';
 import { getCurrentSession, signInAnonymously } from './auth';
@@ -16,7 +17,37 @@ export interface JournalAnalysis {
   summary: string;
   blocker: string;
   mood: string;
+  insight: string; // NEW: Personal coach observation
   tasks: MicroTask[];
+}
+
+/**
+ * Get time of day context for personalized prompts
+ */
+function getTimeContext(): { timeOfDay: string; hourContext: string } {
+  const hour = new Date().getHours();
+  
+  if (hour >= 5 && hour < 12) {
+    return { timeOfDay: 'morning', hourContext: 'starting their day' };
+  } else if (hour >= 12 && hour < 17) {
+    return { timeOfDay: 'afternoon', hourContext: 'in the middle of their day' };
+  } else if (hour >= 17 && hour < 21) {
+    return { timeOfDay: 'evening', hourContext: 'winding down for the day' };
+  } else {
+    return { timeOfDay: 'night', hourContext: 'working late or having trouble sleeping' };
+  }
+}
+
+/**
+ * Get user's challenge from onboarding
+ */
+async function getUserChallenge(): Promise<string> {
+  try {
+    const challenge = await AsyncStorage.getItem('@user_challenge');
+    return challenge || 'general productivity';
+  } catch {
+    return 'general productivity';
+  }
 }
 
 export interface ProcessResult {
@@ -61,9 +92,13 @@ export async function processJournalEntry(audioUri: string, retryCount = 0): Pro
     // Get or create valid session
     let session = await getValidSession();
 
-    // Get language preference
+    // Get language preference and user context
     const prefs = await getPreferences();
     const language = prefs.language || 'en';
+    
+    // Get personalization context (NEW)
+    const userChallenge = await getUserChallenge();
+    const { timeOfDay, hourContext } = getTimeContext();
 
     // Read audio file as base64
     console.log('Reading audio file...');
@@ -71,8 +106,8 @@ export async function processJournalEntry(audioUri: string, retryCount = 0): Pro
       encoding: 'base64',
     });
 
-    // Call Edge Function
-    console.log('Calling Edge Function...');
+    // Call Edge Function with personalization context
+    console.log('Calling Edge Function with context:', { userChallenge, timeOfDay });
     const response = await fetch(`${SUPABASE_URL}/functions/v1/process-journal`, {
       method: 'POST',
       headers: {
@@ -82,6 +117,12 @@ export async function processJournalEntry(audioUri: string, retryCount = 0): Pro
       body: JSON.stringify({
         audioBase64,
         language,
+        // NEW: Personalization context
+        userContext: {
+          challenge: userChallenge,
+          timeOfDay,
+          hourContext,
+        },
       }),
     });
 

@@ -463,3 +463,154 @@ export const FunnelHelpers = {
     });
   },
 };
+
+// ============================================
+// NOTIFICATION PERMISSION EVENTS
+// ============================================
+
+export const NotificationEvents = {
+  benefitsShown: () => {
+    posthog.capture('notification_benefits_shown');
+  },
+
+  accepted: () => {
+    posthog.capture('notification_accepted');
+  },
+
+  declined: () => {
+    posthog.capture('notification_declined');
+  },
+
+  declinedScreenShown: () => {
+    posthog.capture('notification_declined_screen_shown');
+  },
+
+  declinedReconsidered: () => {
+    posthog.capture('notification_declined_reconsidered');
+  },
+
+  declinedConfirmed: () => {
+    posthog.capture('notification_declined_confirmed');
+  },
+};
+
+// ============================================
+// WEEKLY SUMMARY EVENTS
+// ============================================
+
+export const WeeklySummaryEvents = {
+  shown: (data: { sessions: number; tasksCompleted: number; streak: number }) => {
+    posthog.capture('weekly_summary_shown', data);
+  },
+
+  dismissed: () => {
+    posthog.capture('weekly_summary_dismissed');
+  },
+
+  insightViewed: (insight: string) => {
+    posthog.capture('weekly_summary_insight_viewed', { insight });
+  },
+};
+
+// ============================================
+// ACHIEVEMENT EVENTS
+// ============================================
+
+export const AchievementEvents = {
+  unlocked: (data: { achievementId: string; achievementName: string; xp: number; totalXp: number }) => {
+    posthog.capture('achievement_unlocked', {
+      achievement_id: data.achievementId,
+      achievement_name: data.achievementName,
+      xp_gained: data.xp,
+      total_xp: data.totalXp,
+    });
+  },
+
+  profileViewed: () => {
+    posthog.capture('achievements_profile_viewed');
+  },
+
+  levelUp: (newLevel: number) => {
+    posthog.capture('level_up', { new_level: newLevel });
+  },
+};
+
+// ============================================
+// OUTPUT CELEBRATION EVENTS
+// ============================================
+
+export const OutputEvents = {
+  celebrationShown: (taskCount: number) => {
+    posthog.capture('output_celebration_shown', { task_count: taskCount });
+  },
+
+  firstTaskPrompted: () => {
+    posthog.capture('first_task_prompted');
+  },
+
+  firstTaskStarted: (taskId: string, duration: number) => {
+    posthog.capture('first_task_started', { task_id: taskId, duration });
+  },
+
+  insightViewed: (blocker: string) => {
+    posthog.capture('output_insight_viewed', { blocker });
+  },
+};
+
+// ============================================
+// PROCESSING PHASE EVENTS
+// ============================================
+
+export const ProcessingEvents = {
+  phaseStarted: (phase: number, phaseName: string) => {
+    posthog.capture('processing_phase_started', { phase, phase_name: phaseName });
+  },
+
+  phaseCompleted: (phase: number, durationMs: number) => {
+    posthog.capture('processing_phase_completed', { phase, duration_ms: durationMs });
+  },
+
+  allPhasesCompleted: (totalDurationMs: number) => {
+    posthog.capture('processing_all_phases_completed', { total_duration_ms: totalDurationMs });
+  },
+};
+
+// ============================================
+// PAYWALL AB TEST EVENTS
+// ============================================
+
+export const PaywallABEvents = {
+  variantShown: (variant: 'steps' | 'comparison') => {
+    posthog.capture('paywall_variant_shown', { variant });
+  },
+
+  timerShown: (hoursLeft: number) => {
+    posthog.capture('paywall_timer_shown', { hours_left: hoursLeft });
+  },
+
+  comparisonTableScrolled: (depth: number) => {
+    posthog.capture('paywall_comparison_scrolled', { scroll_depth: depth });
+  },
+
+  trustBadgeViewed: () => {
+    posthog.capture('paywall_trust_badge_viewed');
+  },
+
+  lossAversionShown: () => {
+    posthog.capture('paywall_loss_aversion_shown');
+  },
+};
+
+// ============================================
+// DYNAMIC PROMPTS EVENTS
+// ============================================
+
+export const PromptEvents = {
+  shown: (timeOfDay: 'morning' | 'afternoon' | 'evening', prompt: string) => {
+    posthog.capture('dynamic_prompt_shown', { time_of_day: timeOfDay, prompt });
+  },
+
+  interacted: (prompt: string) => {
+    posthog.capture('dynamic_prompt_interacted', { prompt });
+  },
+};

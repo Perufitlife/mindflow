@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unbind - Beat Procrastination with AI</title>
+    <meta name="description" content="Transform your voice into actionable micro-tasks. Unbind uses AI to help you overcome procrastination and take immediate action.">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #111827;
+            background: #FFFFFF;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        
+        header {
+            padding: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #EEF2FF 0%, #FFFFFF 100%);
+        }
+        
+        .logo {
+            font-size: 48px;
+            font-weight: 800;
+            color: #4F46E5;
+            margin-bottom: 16px;
+        }
+        
+        .tagline {
+            font-size: 20px;
+            color: #6B7280;
+            margin-bottom: 32px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: #4F46E5;
+            color: #FFFFFF;
+            padding: 16px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 18px;
+            transition: background 0.2s;
+        }
+        
+        .cta-button:hover {
+            background: #4338CA;
+        }
+        
+        section {
+            padding: 60px 0;
+        }
+        
+        h2 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-top: 40px;
+        }
+        
+        .feature {
+            background: #F9FAFB;
+            padding: 24px;
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .feature h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .feature p {
+            color: #6B7280;
+        }
+        
+        .how-it-works {
+            background: #F9FAFB;
+        }
+        
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            max-width: 500px;
+            margin: 40px auto 0;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .step-number {
+            width: 48px;
+            height: 48px;
+            background: #4F46E5;
+            color: #FFFFFF;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .step-content h3 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .step-content p {
+            color: #6B7280;
+        }
+        
+        footer {
+            background: #111827;
+            color: #FFFFFF;
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        footer a {
+            color: #A5B4FC;
+            text-decoration: none;
+            margin: 0 16px;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .footer-links {
+            margin-bottom: 24px;
+        }
+        
+        .copyright {
+            color: #9CA3AF;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">Unbind</div>
+            <p class="tagline">Beat Procrastination with AI-Powered Micro-Tasks</p>
+            <a href="https://apps.apple.com/app/unbind" class="cta-button">Download on App Store</a>
+        </div>
+    </header>
+    
+    <section>
+        <div class="container">
+            <h2>Transform Your Thoughts Into Action</h2>
+            <p style="text-align: center; color: #6B7280; max-width: 600px; margin: 0 auto;">
+                Stop procrastinating. Start doing. Unbind transforms your voice into actionable micro-tasks in seconds.
+            </p>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">🎙️</div>
+                    <h3>Voice to Tasks</h3>
+                    <p>Just speak what's on your mind. Our AI does the rest.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Micro-Tasks</h3>
+                    <p>Get 2-30 minute tasks you can actually complete.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🧠</div>
+                    <h3>Coach Insights</h3>
+                    <p>Feel truly understood with personalized observations.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section class="how-it-works">
+        <div class="container">
+            <h2>How It Works</h2>
+            
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Speak</h3>
+                        <p>Record what's on your mind (30 sec to 5 min)</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>AI Processes</h3>
+                        <p>Our AI understands your context and emotions</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Act</h3>
+                        <p>Get 3 personalized micro-tasks you can do RIGHT NOW</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section>
+        <div class="container" style="text-align: center;">
+            <h2>Start Your Free Trial</h2>
+            <p style="color: #6B7280; margin-bottom: 32px;">3 days free. No credit card required.</p>
+            <a href="https://apps.apple.com/app/unbind" class="cta-button">Download Unbind</a>
+        </div>
+    </section>
+    
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+                <a href="support.html">Support</a>
+            </div>
+            <p class="copyright">&copy; 2026 Unbind. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

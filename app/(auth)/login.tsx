@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -14,6 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+// URLs for legal documents (update with your actual domain)
+const PRIVACY_URL = 'https://unbindapp.com/privacy';
+const TERMS_URL = 'https://unbindapp.com/terms';
 import { trackSignIn } from '../../services/analytics';
 import { signIn, signInWithApple } from '../../services/auth';
 
@@ -158,6 +163,18 @@ export default function LoginScreen() {
           )}
         </View>
 
+        {/* Terms */}
+        <Text style={styles.terms}>
+          By signing in, you agree to our{' '}
+          <Text style={styles.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>
+            Terms of Service
+          </Text>{' '}
+          and{' '}
+          <Text style={styles.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
+            Privacy Policy
+          </Text>
+        </Text>
+
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
@@ -261,6 +278,17 @@ const styles = StyleSheet.create({
   appleButton: {
     height: 52,
     width: '100%',
+  },
+  terms: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: 24,
+  },
+  termsLink: {
+    color: '#6366F1',
+    fontWeight: '500',
   },
   footer: {
     flexDirection: 'row',

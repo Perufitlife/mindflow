@@ -1,8 +1,8 @@
-// app/(tabs)/record.tsx - Record Screen
+// app/(tabs)/record.tsx - Record Screen with Dynamic Prompts
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Alert,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -27,6 +28,44 @@ import { trackRecordingStarted, trackRecordingStopped } from '../../services/ana
 const MIN_RECORDING_SECONDS = 30;
 const SUGGESTED_RECORDING_SECONDS = 120;
 
+// Dynamic prompts based on time of day
+const PROMPTS = {
+  morning: [
+    "What would make today a success?",
+    "What's your biggest priority right now?",
+    "How are you feeling as you start the day?",
+    "What's been on your mind this morning?",
+  ],
+  afternoon: [
+    "What's blocking your progress today?",
+    "What have you been avoiding?",
+    "How can you make the rest of today count?",
+    "What's draining your energy right now?",
+  ],
+  evening: [
+    "What did you accomplish today?",
+    "What's carrying over to tomorrow?",
+    "How are you feeling about today?",
+    "What would help you wind down?",
+  ],
+};
+
+function getDynamicPrompt(): string {
+  const hour = new Date().getHours();
+  let prompts: string[];
+  
+  if (hour < 12) {
+    prompts = PROMPTS.morning;
+  } else if (hour < 18) {
+    prompts = PROMPTS.afternoon;
+  } else {
+    prompts = PROMPTS.evening;
+  }
+  
+  // Random prompt from the appropriate time period
+  return prompts[Math.floor(Math.random() * prompts.length)];
+}
+
 export default function RecordScreen() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -35,6 +74,9 @@ export default function RecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Dynamic prompt - memoized to prevent changing during recording
+  const dynamicPrompt = useMemo(() => getDynamicPrompt(), []);
 
   // Animations
   const scale = useSharedValue(1);
@@ -212,6 +254,16 @@ export default function RecordScreen() {
         <UnbindLogo size={40} animation={isRecording ? 'pulse' : 'breathing'} />
       </View>
 
+      {/* Dynamic Prompt Card */}
+      {!isRecording && (
+        <Animated.View entering={FadeIn.duration(500)} style={[styles.promptCard, { backgroundColor: colors.primaryLight + '30' }]}>
+          <Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />
+          <Text style={[styles.promptText, { color: colors.text }]}>
+            "{dynamicPrompt}"
+          </Text>
+        </Animated.View>
+      )}
+
       {/* Main content */}
       <View style={styles.content}>
         <Text style={[styles.timer, { color: colors.text }]}>{formatTime(seconds)}</Text>
@@ -385,5 +437,23 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 4,
     lineHeight: 20,
+  },
+  // Dynamic Prompt Styles
+  promptCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 24,
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    gap: 12,
+  },
+  promptText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    lineHeight: 24,
   },
 });

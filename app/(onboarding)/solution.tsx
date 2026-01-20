@@ -98,7 +98,7 @@ export default function SolutionScreen() {
   return (
     <View style={styles.container}>
       {/* Progress Bar */}
-      <OnboardingProgressBar currentStep={2} totalSteps={4} />
+      <OnboardingProgressBar currentStep={2} totalSteps={6} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -153,6 +153,17 @@ export default function SolutionScreen() {
           </React.Fragment>
         ))}
       </View>
+
+      {/* AI Disclosure */}
+      <Animated.View
+        entering={FadeIn.delay(1100).duration(400)}
+        style={styles.aiDisclosure}
+      >
+        <Ionicons name="shield-checkmark-outline" size={14} color="#9CA3AF" />
+        <Text style={styles.aiDisclosureText}>
+          Your voice is processed securely by AI. Never stored or used for training.
+        </Text>
+      </Animated.View>
 
       {/* Social Proof */}
       <Animated.View
@@ -252,6 +263,20 @@ const styles = StyleSheet.create({
   arrowContainer: {
     alignItems: 'center',
     paddingVertical: 8,
+  },
+  aiDisclosure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    marginBottom: 12,
+    gap: 6,
+  },
+  aiDisclosureText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 16,
   },
   socialProof: {
     flexDirection: 'row',
