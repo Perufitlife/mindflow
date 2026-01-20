@@ -16,9 +16,9 @@ import {
   View,
 } from 'react-native';
 
-// URLs for legal documents (update with your actual domain)
-const PRIVACY_URL = 'https://unbindapp.com/privacy';
-const TERMS_URL = 'https://unbindapp.com/terms';
+// URLs for legal documents
+const PRIVACY_URL = 'https://unbindapp.com/privacy.html';
+const TERMS_URL = 'https://unbindapp.com/terms.html';
 import { trackSignUp } from '../../services/analytics';
 import { signInWithApple, signUp } from '../../services/auth';
 
