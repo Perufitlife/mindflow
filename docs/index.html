@@ -3,253 +3,1030 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unbind - Beat Procrastination with AI</title>
-    <meta name="description" content="Transform your voice into actionable micro-tasks. Unbind uses AI to help you overcome procrastination and take immediate action.">
+    <title>Unbind - Turn Your Voice Into Action</title>
+    <meta name="description" content="Transform overwhelming thoughts into actionable micro-tasks in 2 minutes. Unbind uses AI to help you beat procrastination and take immediate action.">
+    <meta name="keywords" content="procrastination, productivity, AI, micro-tasks, voice journal, mental clarity, focus, habits">
+    <meta property="og:title" content="Unbind - Turn Your Voice Into Action">
+    <meta property="og:description" content="Transform overwhelming thoughts into actionable micro-tasks in 2 minutes.">
+    <meta property="og:image" content="https://unbindapp.com/app-icon.png">
+    <meta property="og:url" content="https://unbindapp.com">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" type="image/png" href="app-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary: #6366F1;
+            --primary-dark: #4F46E5;
+            --primary-light: #EEF2FF;
+            --text: #111827;
+            --text-muted: #6B7280;
+            --text-light: #9CA3AF;
+            --background: #FFFFFF;
+            --background-alt: #F9FAFB;
+            --border: #E5E7EB;
+            --success: #10B981;
+            --warning: #F59E0B;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
-            color: #111827;
-            background: #FFFFFF;
+            color: var(--text);
+            background: var(--background);
+            overflow-x: hidden;
         }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-        
-        header {
-            padding: 40px 0;
-            text-align: center;
-            background: linear-gradient(135deg, #EEF2FF 0%, #FFFFFF 100%);
-        }
-        
-        .logo {
-            font-size: 48px;
-            font-weight: 800;
-            color: #4F46E5;
-            margin-bottom: 16px;
-        }
-        
-        .tagline {
-            font-size: 20px;
-            color: #6B7280;
-            margin-bottom: 32px;
-        }
-        
-        .cta-button {
-            display: inline-block;
-            background: #4F46E5;
-            color: #FFFFFF;
-            padding: 16px 32px;
-            border-radius: 12px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 18px;
-            transition: background 0.2s;
-        }
-        
-        .cta-button:hover {
-            background: #4338CA;
-        }
-        
-        section {
-            padding: 60px 0;
-        }
-        
-        h2 {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 24px;
-            text-align: center;
-        }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 24px;
-            margin-top: 40px;
-        }
-        
-        .feature {
-            background: #F9FAFB;
-            padding: 24px;
-            border-radius: 16px;
-            text-align: center;
-        }
-        
-        .feature-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-        
-        .feature h3 {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .feature p {
-            color: #6B7280;
-        }
-        
-        .how-it-works {
-            background: #F9FAFB;
-        }
-        
-        .steps {
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 40px;
             display: flex;
-            flex-direction: column;
-            gap: 24px;
-            max-width: 500px;
-            margin: 40px auto 0;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         }
-        
-        .step {
+
+        .nav-logo {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 12px;
+            text-decoration: none;
         }
-        
+
+        .nav-logo img {
+            height: 36px;
+            width: auto;
+        }
+
+        .nav-logo span {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-cta {
+            background: var(--text);
+            color: white !important;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 120px 40px 80px;
+            background: linear-gradient(180deg, var(--primary-light) 0%, var(--background) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .hero-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+        }
+
+        .hero-badge span {
+            color: var(--success);
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            color: var(--text);
+        }
+
+        .hero h1 .highlight {
+            background: linear-gradient(135deg, var(--primary) 0%, #818CF8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-description {
+            font-size: 20px;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            max-width: 480px;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--text);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 14px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 17px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+
+        .btn-secondary:hover {
+            color: var(--primary);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 40px;
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 1px solid var(--border);
+        }
+
+        .stat {
+            text-align: left;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Phone Mockup */
+        .hero-visual {
+            position: relative;
+            display: flex;
+            justify-content: center;
+        }
+
+        .phone-mockup {
+            width: 280px;
+            height: 580px;
+            background: var(--text);
+            border-radius: 40px;
+            padding: 12px;
+            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.15), 0 20px 40px rgba(0, 0, 0, 0.1);
+            transform: perspective(1000px) rotateY(-5deg) rotateX(2deg);
+            transition: transform 0.5s ease;
+        }
+
+        .phone-mockup:hover {
+            transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: white;
+            border-radius: 32px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .phone-header {
+            padding: 16px 20px;
+            text-align: center;
+        }
+
+        .phone-header-text {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .phone-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, var(--primary-light) 0%, white 50%);
+        }
+
+        .mic-button {
+            width: 100px;
+            height: 100px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .mic-button svg {
+            width: 40px;
+            height: 40px;
+            color: white;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
+        }
+
+        .phone-prompt {
+            font-size: 14px;
+            color: var(--text);
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 120px 40px;
+            background: var(--background);
+        }
+
+        .section-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-label {
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .section-description {
+            font-size: 18px;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+        }
+
+        .feature-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            border-color: var(--primary-light);
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--primary-light);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .feature-icon svg {
+            width: 28px;
+            height: 28px;
+            color: var(--primary);
+        }
+
+        .feature-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        /* How It Works */
+        .how-it-works {
+            padding: 120px 40px;
+            background: var(--background-alt);
+        }
+
+        .steps-container {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 64px;
+        }
+
+        .step-card {
+            flex: 1;
+            max-width: 320px;
+            background: white;
+            border-radius: 24px;
+            padding: 40px 32px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
         .step-number {
-            width: 48px;
-            height: 48px;
-            background: #4F46E5;
-            color: #FFFFFF;
+            position: absolute;
+            top: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 20px;
-            flex-shrink: 0;
+            font-size: 14px;
         }
-        
-        .step-content h3 {
-            font-size: 18px;
+
+        .step-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .step-icon.speak { background: var(--primary-light); }
+        .step-icon.process { background: #FEF3C7; }
+        .step-icon.act { background: #D1FAE5; }
+
+        .step-icon svg {
+            width: 36px;
+            height: 36px;
+        }
+
+        .step-card h3 {
+            font-size: 22px;
             font-weight: 600;
+            margin-bottom: 12px;
         }
-        
-        .step-content p {
-            color: #6B7280;
+
+        .step-card p {
+            color: var(--text-muted);
+            font-size: 15px;
         }
-        
-        footer {
-            background: #111827;
-            color: #FFFFFF;
-            padding: 40px 0;
+
+        .step-arrow {
+            display: flex;
+            align-items: center;
+            color: var(--border);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 120px 40px;
+            background: linear-gradient(135deg, var(--text) 0%, #1F2937 100%);
             text-align: center;
         }
-        
-        footer a {
-            color: #A5B4FC;
-            text-decoration: none;
-            margin: 0 16px;
+
+        .cta-section h2 {
+            font-size: 42px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 16px;
         }
-        
-        footer a:hover {
-            text-decoration: underline;
+
+        .cta-section p {
+            font-size: 18px;
+            color: var(--text-light);
+            margin-bottom: 40px;
         }
-        
-        .footer-links {
-            margin-bottom: 24px;
+
+        .cta-section .btn-primary {
+            background: white;
+            color: var(--text);
         }
-        
-        .copyright {
-            color: #9CA3AF;
+
+        .cta-section .btn-primary:hover {
+            background: var(--primary-light);
+        }
+
+        .cta-trust {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        .cta-trust-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
             font-size: 14px;
+        }
+
+        .cta-trust-item svg {
+            width: 18px;
+            height: 18px;
+            color: var(--success);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--background-alt);
+            padding: 60px 40px 40px;
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 48px;
+            padding-bottom: 48px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .footer-brand img {
+            height: 32px;
+        }
+
+        .footer-brand span {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 48px;
+        }
+
+        .footer-column h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+
+        .footer-column a {
+            display: block;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 12px;
+            transition: color 0.2s;
+        }
+
+        .footer-column a:hover {
+            color: var(--primary);
+        }
+
+        .footer-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-copyright {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .footer-social {
+            display: flex;
+            gap: 16px;
+        }
+
+        .footer-social a {
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+
+        .footer-social a:hover {
+            color: var(--primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .hero-container {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 60px;
+            }
+
+            .hero h1 {
+                font-size: 42px;
+            }
+
+            .hero-description {
+                margin: 0 auto 40px;
+            }
+
+            .hero-cta {
+                justify-content: center;
+            }
+
+            .hero-stats {
+                justify-content: center;
+            }
+
+            .hero-visual {
+                order: -1;
+            }
+
+            .phone-mockup {
+                transform: none;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+                margin: 0 auto;
+            }
+
+            .steps-container {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .step-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                padding: 16px 20px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 100px 20px 60px;
+            }
+
+            .hero h1 {
+                font-size: 32px;
+            }
+
+            .hero-description {
+                font-size: 17px;
+            }
+
+            .hero-stats {
+                gap: 24px;
+            }
+
+            .stat-value {
+                font-size: 24px;
+            }
+
+            .phone-mockup {
+                width: 240px;
+                height: 500px;
+            }
+
+            .features, .how-it-works, .cta-section {
+                padding: 80px 20px;
+            }
+
+            .section-title {
+                font-size: 32px;
+            }
+
+            .footer-top {
+                flex-direction: column;
+                gap: 32px;
+            }
+
+            .footer-links {
+                flex-wrap: wrap;
+                gap: 32px;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                gap: 16px;
+            }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <div class="logo">Unbind</div>
-            <p class="tagline">Beat Procrastination with AI-Powered Micro-Tasks</p>
-            <a href="https://apps.apple.com/app/unbind" class="cta-button">Download on App Store</a>
+    <!-- Navigation -->
+    <nav>
+        <a href="/" class="nav-logo">
+            <img src="logo.png" alt="Unbind Logo">
+            <span>Unbind</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="support.html">Support</a>
+            <a href="https://apps.apple.com/app/unbind" class="nav-cta">Download</a>
         </div>
-    </header>
-    
-    <section>
-        <div class="container">
-            <h2>Transform Your Thoughts Into Action</h2>
-            <p style="text-align: center; color: #6B7280; max-width: 600px; margin: 0 auto;">
-                Stop procrastinating. Start doing. Unbind transforms your voice into actionable micro-tasks in seconds.
-            </p>
-            
-            <div class="features">
-                <div class="feature">
-                    <div class="feature-icon">🎙️</div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    <span>New</span> AI-Powered Micro-Tasks
+                </div>
+                <h1>Turn Your Voice Into <span class="highlight">Action</span></h1>
+                <p class="hero-description">
+                    Feeling overwhelmed? Speak for 2 minutes and get personalized micro-tasks you can actually complete. No more procrastination.
+                </p>
+                <div class="hero-cta">
+                    <a href="https://apps.apple.com/app/unbind" class="btn-primary">
+                        <svg fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                        </svg>
+                        Download for iOS
+                    </a>
+                    <a href="#how-it-works" class="btn-secondary">
+                        See how it works
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <div class="stat-value">10K+</div>
+                        <div class="stat-label">Active Users</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">4.9</div>
+                        <div class="stat-label">App Store Rating</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">2 min</div>
+                        <div class="stat-label">Avg. Session</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="phone-mockup">
+                    <div class="phone-screen">
+                        <div class="phone-header">
+                            <span class="phone-header-text">Ready to record</span>
+                        </div>
+                        <div class="phone-content">
+                            <div class="mic-button">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                                </svg>
+                            </div>
+                            <p class="phone-prompt">Tap to speak your mind</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Features</span>
+                <h2 class="section-title">Everything you need to take action</h2>
+                <p class="section-description">
+                    Unbind transforms your overwhelming thoughts into clear, achievable micro-tasks using advanced AI.
+                </p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                        </svg>
+                    </div>
                     <h3>Voice to Tasks</h3>
-                    <p>Just speak what's on your mind. Our AI does the rest.</p>
+                    <p>Just speak what's on your mind. Our AI transcribes and analyzes your thoughts in seconds.</p>
                 </div>
-                <div class="feature">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Micro-Tasks</h3>
-                    <p>Get 2-30 minute tasks you can actually complete.</p>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3>Zero-Friction Start</h3>
+                    <p>Your first task is always 2-5 minutes. So easy you'd feel silly not doing it.</p>
                 </div>
-                <div class="feature">
-                    <div class="feature-icon">🧠</div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                    </div>
                     <h3>Coach Insights</h3>
-                    <p>Feel truly understood with personalized observations.</p>
+                    <p>Get personalized observations that make you feel truly understood, not judged.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h3>Build Momentum</h3>
+                    <p>Complete your starter task, then naturally flow into bigger ones. Momentum is everything.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/>
+                        </svg>
+                    </div>
+                    <h3>Daily Streaks</h3>
+                    <p>Track your progress and maintain your streak. Consistency beats intensity.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h3>Private & Secure</h3>
+                    <p>Your voice is processed securely by AI and never stored. Your thoughts stay yours.</p>
                 </div>
             </div>
         </div>
     </section>
-    
-    <section class="how-it-works">
-        <div class="container">
-            <h2>How It Works</h2>
-            
-            <div class="steps">
-                <div class="step">
+
+    <!-- How It Works -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">How It Works</span>
+                <h2 class="section-title">From chaos to clarity in 3 steps</h2>
+                <p class="section-description">
+                    Transform your overwhelming thoughts into actionable tasks in under 2 minutes.
+                </p>
+            </div>
+            <div class="steps-container">
+                <div class="step-card">
                     <div class="step-number">1</div>
-                    <div class="step-content">
-                        <h3>Speak</h3>
-                        <p>Record what's on your mind (30 sec to 5 min)</p>
+                    <div class="step-icon speak">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="#6366F1" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                        </svg>
                     </div>
+                    <h3>Speak</h3>
+                    <p>Talk about what's overwhelming you. No structure needed, just be honest.</p>
                 </div>
-                <div class="step">
+                <div class="step-arrow">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </div>
+                <div class="step-card">
                     <div class="step-number">2</div>
-                    <div class="step-content">
-                        <h3>AI Processes</h3>
-                        <p>Our AI understands your context and emotions</p>
+                    <div class="step-icon process">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="#F59E0B" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                        </svg>
                     </div>
+                    <h3>AI Processes</h3>
+                    <p>Our AI understands your context, emotions, and finds the real blocker.</p>
                 </div>
-                <div class="step">
+                <div class="step-arrow">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </div>
+                <div class="step-card">
                     <div class="step-number">3</div>
-                    <div class="step-content">
-                        <h3>Act</h3>
-                        <p>Get 3 personalized micro-tasks you can do RIGHT NOW</p>
+                    <div class="step-icon act">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="#10B981" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                     </div>
+                    <h3>Act</h3>
+                    <p>Get 3 personalized micro-tasks. Start with the easiest one. Build momentum.</p>
                 </div>
             </div>
         </div>
     </section>
-    
-    <section>
-        <div class="container" style="text-align: center;">
-            <h2>Start Your Free Trial</h2>
-            <p style="color: #6B7280; margin-bottom: 32px;">3 days free. No credit card required.</p>
-            <a href="https://apps.apple.com/app/unbind" class="cta-button">Download Unbind</a>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="section-container">
+            <h2>Ready to beat procrastination?</h2>
+            <p>Start your 3-day free trial. No credit card required.</p>
+            <a href="https://apps.apple.com/app/unbind" class="btn-primary">
+                <svg fill="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                Download for Free
+            </a>
+            <div class="cta-trust">
+                <div class="cta-trust-item">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    3-day free trial
+                </div>
+                <div class="cta-trust-item">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Cancel anytime
+                </div>
+                <div class="cta-trust-item">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    No credit card required
+                </div>
+            </div>
         </div>
     </section>
-    
+
+    <!-- Footer -->
     <footer>
-        <div class="container">
-            <div class="footer-links">
-                <a href="privacy.html">Privacy Policy</a>
-                <a href="terms.html">Terms of Service</a>
-                <a href="support.html">Support</a>
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-brand">
+                    <img src="logo.png" alt="Unbind">
+                    <span>Unbind</span>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="#how-it-works">How It Works</a>
+                        <a href="https://apps.apple.com/app/unbind">Download</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <a href="support.html">Help Center</a>
+                        <a href="mailto:support@unbindapp.com">Contact Us</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Legal</h4>
+                        <a href="privacy.html">Privacy Policy</a>
+                        <a href="terms.html">Terms of Service</a>
+                    </div>
+                </div>
             </div>
-            <p class="copyright">&copy; 2026 Unbind. All rights reserved.</p>
+            <div class="footer-bottom">
+                <p class="footer-copyright">&copy; 2026 Unbind. All rights reserved.</p>
+                <div class="footer-social">
+                    <a href="https://twitter.com/unbindapp" aria-label="Twitter">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                    </a>
+                    <a href="https://instagram.com/unbindapp" aria-label="Instagram">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
         </div>
     </footer>
 </body>
