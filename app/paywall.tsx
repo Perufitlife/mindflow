@@ -1,176 +1,323 @@
+// app/paywall.tsx - In-App Paywall (trial expired or daily limit)
+// 2 Plans: Monthly & Yearly with attractive presentation
+
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { PurchasesPackage } from 'react-native-purchases';
+import { COLORS } from '../constants/brand';
+import { TRIAL_CONFIG } from '../config/revenuecat';
+import { PLANS } from '../config/plans';
+import {
+  getOfferings,
+  purchasePackage,
+  restorePurchases,
+} from '../services/subscriptions';
+import {
+  trackPaywallDismissed,
+  trackPaywallShown,
+  trackPaywallSubscribeClicked,
+} from '../services/analytics';
+import { markPaywallSeen } from '../services/user';
+import posthog from '../posthog';
+
+type PlanType = 'yearly' | 'monthly';
 
 export default function PaywallScreen() {
   const router = useRouter();
-  const { mood } = useLocalSearchParams<{ mood?: string }>();
+  const { trigger } = useLocalSearchParams<{ trigger?: string }>();
 
-  const handleClose = () => {
-    router.replace('/record');
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState(false);
+  const [packages, setPackages] = useState<{ monthly: PurchasesPackage | null; yearly: PurchasesPackage | null }>({
+    monthly: null,
+    yearly: null,
+  });
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
+
+  const isTrialExpired = trigger === 'trial_expired';
+  const isLimitReached = trigger === 'daily_limit';
+
+  useEffect(() => {
+    trackPaywallShown(trigger || 'manual');
+    loadOfferings();
+  }, []);
+
+  const loadOfferings = async () => {
+    try {
+      const offering = await getOfferings();
+      if (offering?.availablePackages) {
+        setPackages({
+          monthly: offering.availablePackages.find(p => p.packageType === 'MONTHLY') || null,
+          yearly: offering.availablePackages.find(p => p.packageType === 'ANNUAL') || null,
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load offerings (expected in Expo Go):', error);
+      // App will show fallback prices
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubscribe = () => {
-    // Aquí luego integrarás RevenueCat / In-App Purchases
-    // Por ahora solo simulamos y volvemos a record
-    router.replace('/record');
+  const handleClose = async () => {
+    await markPaywallSeen();
+    trackPaywallDismissed();
+    router.replace('/(tabs)');
+  };
+
+  const handlePurchase = async () => {
+    const pkg = packages[selectedPlan];
+    if (!pkg) {
+      Alert.alert('Error', 'Unable to load subscription. Please try again.');
+      return;
+    }
+
+    setPurchasing(true);
+    trackPaywallSubscribeClicked(selectedPlan);
+
+    try {
+      const result = await purchasePackage(pkg);
+      if (result.success) {
+        posthog.capture('subscription_success', { plan: selectedPlan, trigger: trigger || 'manual' });
+        Alert.alert(
+          'Welcome to Premium! 🎉',
+          'You now have full access. Let\'s get productive!',
+          [{ text: 'Let\'s go!', onPress: () => router.replace('/(tabs)') }]
+        );
+      } else if (result.error !== 'cancelled') {
+        Alert.alert('Purchase Failed', result.error || 'Please try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Something went wrong.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setPurchasing(true);
+    try {
+      const result = await restorePurchases();
+      if (result.isPremium) {
+        Alert.alert('Success', 'Your subscription has been restored!', [
+          { text: 'Continue', onPress: () => router.replace('/(tabs)') },
+        ]);
+      } else {
+        Alert.alert('No Subscription Found', 'We couldn\'t find an active subscription.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to restore purchases.');
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.badge}>7 days free</Text>
+      {/* Close button - only if not hard paywall */}
+      {!isTrialExpired && (
+        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+          <Ionicons name="close" size={24} color="#9CA3AF" />
+        </TouchableOpacity>
+      )}
 
-      <Text style={styles.title}>Keep turning thoughts into clarity</Text>
-      <Text style={styles.subtitle}>
-        Unlock unlimited voice entries, smarter insights and weekly summaries
-        based on everything you share.
-      </Text>
-
-      {mood ? (
-        <View style={styles.highlightCard}>
-          <Text style={styles.highlightTitle}>
-            From {mood} to clear and focused
-          </Text>
-          <Text style={styles.highlightText}>
-            Use Voice Journal AI every day for 7 days and see how your mind
-            feels when everything is organized for you.
-          </Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Header based on trigger */}
+        <View style={styles.header}>
+          {isTrialExpired ? (
+            <>
+              <View style={styles.expiredIcon}>
+                <Ionicons name="time-outline" size={48} color={COLORS.primary} />
+              </View>
+              <Text style={styles.title}>Your free trial{'\n'}has ended</Text>
+              <Text style={styles.subtitle}>
+                Subscribe to continue beating procrastination with AI-powered micro-tasks.
+              </Text>
+            </>
+          ) : isLimitReached ? (
+            <>
+              <View style={styles.limitIcon}>
+                <Ionicons name="flash" size={48} color="#F59E0B" />
+              </View>
+              <Text style={styles.title}>You've hit your{'\n'}daily limit</Text>
+              <Text style={styles.subtitle}>
+                Come back tomorrow or upgrade to Premium for 10 sessions per day.
+              </Text>
+            </>
+          ) : (
+            <>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>UNBIND PREMIUM</Text>
+              </View>
+              <Text style={styles.title}>Unlock your full{'\n'}potential</Text>
+              <Text style={styles.subtitle}>
+                10 voice sessions per day. Beat procrastination every day.
+              </Text>
+            </>
+          )}
         </View>
-      ) : null}
 
-      <View style={styles.benefitsCard}>
-        <Text style={styles.benefitItem}>• Unlimited daily voice entries</Text>
-        <Text style={styles.benefitItem}>• Clear summaries and action steps</Text>
-        <Text style={styles.benefitItem}>
-          • Weekly email with your main patterns
-        </Text>
-        <Text style={styles.benefitItem}>• Private. Nothing is shared.</Text>
-      </View>
+        {/* Benefits */}
+        <View style={styles.benefits}>
+          <BenefitRow icon="rocket" title="10x your productivity" />
+          <BenefitRow icon="flash" title="AI micro-tasks that work" />
+          <BenefitRow icon="trending-up" title="Track your progress" />
+        </View>
 
+        {/* Pricing */}
+        {loading ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 20 }} />
+        ) : (
+          <View style={styles.pricing}>
+            {/* YEARLY */}
+            <TouchableOpacity
+              style={[styles.priceOption, selectedPlan === 'yearly' && styles.priceOptionSelected]}
+              onPress={() => setSelectedPlan('yearly')}
+            >
+              <View style={styles.bestValueBadge}>
+                <Text style={styles.bestValueText}>BEST VALUE</Text>
+              </View>
+              <View style={styles.priceRadio}>
+                <Ionicons
+                  name={selectedPlan === 'yearly' ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={26}
+                  color={selectedPlan === 'yearly' ? COLORS.primary : '#D1D5DB'}
+                />
+              </View>
+              <View style={styles.priceInfo}>
+                <Text style={styles.priceLabel}>Yearly</Text>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceMain}>${PLANS.PREMIUM.pricePerMonthYearly.toFixed(2)}</Text>
+                  <Text style={styles.pricePeriod}>/month</Text>
+                </View>
+                <Text style={styles.priceBilled}>${PLANS.PREMIUM.priceYearly} billed annually</Text>
+              </View>
+              <View style={styles.saveBadge}>
+                <Text style={styles.saveText}>SAVE {PLANS.PREMIUM.yearlySavingsPercent}%</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* MONTHLY */}
+            <TouchableOpacity
+              style={[styles.priceOption, selectedPlan === 'monthly' && styles.priceOptionSelected]}
+              onPress={() => setSelectedPlan('monthly')}
+            >
+              <View style={styles.priceRadio}>
+                <Ionicons
+                  name={selectedPlan === 'monthly' ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={26}
+                  color={selectedPlan === 'monthly' ? COLORS.primary : '#D1D5DB'}
+                />
+              </View>
+              <View style={styles.priceInfo}>
+                <Text style={styles.priceLabel}>Monthly</Text>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceMain}>${PLANS.PREMIUM.priceMonthly.toFixed(2)}</Text>
+                  <Text style={styles.pricePeriod}>/month</Text>
+                </View>
+                <Text style={styles.priceBilled}>Billed monthly</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleSubscribe}>
-          <Text style={styles.primaryButtonText}>
-            Start 7-day free trial – $9.99/month
-          </Text>
-          <Text style={styles.primaryButtonSub}>
-            No charge today. Cancel anytime in 2 taps.
-          </Text>
+        <TouchableOpacity
+          style={[styles.primaryButton, purchasing && styles.buttonDisabled]}
+          onPress={handlePurchase}
+          disabled={purchasing}
+        >
+          {purchasing ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryButtonText}>
+              {isTrialExpired ? 'Subscribe Now' : `Start ${TRIAL_CONFIG.durationDays}-day free trial`}
+            </Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleClose}>
-          <Text style={styles.secondaryButtonText}>Not now</Text>
-        </TouchableOpacity>
+        <View style={styles.footerLinks}>
+          <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
+            <Text style={styles.linkText}>Restore</Text>
+          </TouchableOpacity>
+          {!isTrialExpired && (
+            <>
+              <Text style={styles.linkDivider}>•</Text>
+              <TouchableOpacity onPress={handleClose}>
+                <Text style={styles.linkText}>{isLimitReached ? 'Back' : 'Maybe later'}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
-        <Text style={styles.legal}>
-          After the trial, your subscription renews automatically unless you
-          cancel at least 24 hours before the end of the period.
+        <Text style={styles.legalText}>
+          {isTrialExpired 
+            ? `${selectedPlan === 'yearly' ? `$${PLANS.PREMIUM.priceYearly}/year` : `$${PLANS.PREMIUM.priceMonthly}/month`}. Cancel anytime.`
+            : `${TRIAL_CONFIG.durationDays}-day free trial, then ${selectedPlan === 'yearly' ? `$${PLANS.PREMIUM.priceYearly}/year` : `$${PLANS.PREMIUM.priceMonthly}/month`}. Cancel anytime.`
+          }
         </Text>
       </View>
     </View>
   );
 }
 
+function BenefitRow({ icon, title }: { icon: string; title: string }) {
+  return (
+    <View style={styles.benefitRow}>
+      <Ionicons name={icon as any} size={22} color={COLORS.primary} />
+      <Text style={styles.benefitText}>{title}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 24,
-    paddingTop: 70,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
-    color: '#4F46E5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  highlightCard: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-  },
-  highlightTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  highlightText: {
-    fontSize: 13,
-    color: '#4B5563',
-    lineHeight: 20,
-  },
-  benefitsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  benefitItem: {
-    fontSize: 14,
-    color: '#111827',
-    marginBottom: 6,
-  },
-  footer: {
-    marginTop: 'auto',
-    paddingBottom: 24,
-    gap: 10,
-  },
-  primaryButton: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  primaryButtonText: {
-    color: '#F9FAFB',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  primaryButtonSub: {
-    color: '#D1D5DB',
-    fontSize: 12,
-    marginTop: 3,
-  },
-  secondaryButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    color: '#374151',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  legal: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  closeButton: { position: 'absolute', top: 50, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingTop: 70, paddingHorizontal: 24, paddingBottom: 20 },
+  header: { alignItems: 'center', marginBottom: 28 },
+  badge: { backgroundColor: '#EEF2FF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, marginBottom: 16 },
+  badgeText: { color: COLORS.primary, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  expiredIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  limitIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 30, fontWeight: '700', color: '#111827', textAlign: 'center', lineHeight: 38, marginBottom: 10 },
+  subtitle: { fontSize: 17, color: '#6B7280', textAlign: 'center', lineHeight: 26 },
+  benefits: { marginBottom: 28, gap: 12 },
+  benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  benefitText: { fontSize: 16, color: '#374151', fontWeight: '500' },
+  pricing: { gap: 12 },
+  priceOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderRadius: 16, padding: 18, borderWidth: 2, borderColor: 'transparent' },
+  priceOptionSelected: { borderColor: COLORS.primary, backgroundColor: '#EEF2FF' },
+  bestValueBadge: { position: 'absolute', top: -12, left: 18, backgroundColor: COLORS.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  bestValueText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  saveBadge: { backgroundColor: '#10B981', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  saveText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  priceRadio: { marginRight: 14 },
+  priceInfo: { flex: 1 },
+  priceLabel: { fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 2 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline' },
+  priceMain: { fontSize: 26, fontWeight: '700', color: COLORS.primary },
+  pricePeriod: { fontSize: 15, fontWeight: '500', color: '#6B7280', marginLeft: 2 },
+  priceBilled: { fontSize: 13, color: '#6B7280', marginTop: 2 },
+  footer: { padding: 24, paddingBottom: 44, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  primaryButton: { backgroundColor: COLORS.primary, borderRadius: 16, paddingVertical: 18, alignItems: 'center', marginBottom: 14 },
+  buttonDisabled: { opacity: 0.7 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
+  footerLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  linkText: { color: '#6B7280', fontSize: 15, fontWeight: '500' },
+  linkDivider: { color: '#D1D5DB', marginHorizontal: 12 },
+  legalText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
 });
