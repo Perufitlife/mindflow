@@ -1,0 +1,465 @@
+// services/analytics.ts - Centralized Analytics & Funnel Tracking
+// Arthur: "Gasta 90% de tu tiempo en el onboarding. Más del 80% de las conversiones son ahí."
+
+import posthog from '../posthog';
+
+// ============================================
+// ONBOARDING FUNNEL EVENTS
+// ============================================
+
+export const OnboardingEvents = {
+  // Onboarding Start
+  started: () => {
+    posthog.capture('onboarding_started', {
+      timestamp: new Date().toISOString(),
+    });
+  },
+
+  // Step completion
+  stepCompleted: (stepNumber: number, stepName: string, data?: Record<string, any>) => {
+    posthog.capture('onboarding_step_completed', {
+      step_number: stepNumber,
+      step_name: stepName,
+      ...data,
+    });
+  },
+
+  // Drop off tracking
+  droppedAt: (stepNumber: number, stepName: string) => {
+    posthog.capture('onboarding_dropped', {
+      dropped_at_step: stepNumber,
+      dropped_at_name: stepName,
+    });
+  },
+
+  // Completion
+  completed: (totalTimeSeconds: number) => {
+    posthog.capture('onboarding_completed', {
+      total_time_seconds: totalTimeSeconds,
+      completed_at: new Date().toISOString(),
+    });
+  },
+
+  // Individual screen events
+  problemScreenViewed: () => {
+    posthog.capture('onboarding_problem_viewed');
+  },
+
+  solutionScreenViewed: () => {
+    posthog.capture('onboarding_solution_viewed');
+  },
+
+  demographicsViewed: () => {
+    posthog.capture('onboarding_demographics_viewed');
+  },
+
+  demographicsCompleted: (hasName: boolean, ageRange: string, gender: string) => {
+    posthog.capture('onboarding_demographics_completed', {
+      has_name: hasName,
+      age_range: ageRange,
+      gender: gender,
+    });
+  },
+
+  personalizeViewed: () => {
+    posthog.capture('onboarding_personalize_viewed');
+  },
+
+  personalizeSelected: (challenge: string) => {
+    posthog.capture('onboarding_personalize_completed', {
+      challenge_selected: challenge,
+    });
+  },
+};
+
+// ============================================
+// COMMITMENT SCREEN EVENTS
+// ============================================
+
+export const CommitmentEvents = {
+  shown: () => {
+    posthog.capture('commitment_screen_shown');
+  },
+
+  holdStarted: () => {
+    posthog.capture('commitment_hold_started');
+  },
+
+  completed: (holdTimeMs: number) => {
+    posthog.capture('commitment_completed', {
+      hold_time_ms: holdTimeMs,
+    });
+  },
+
+  skipped: () => {
+    posthog.capture('commitment_skipped');
+  },
+};
+
+// ============================================
+// PAYWALL FUNNEL EVENTS
+// ============================================
+
+export const PaywallEvents = {
+  // Overall paywall
+  shown: (source: 'onboarding' | 'limit_reached' | 'settings' | 'manual') => {
+    posthog.capture('paywall_shown', {
+      source,
+    });
+  },
+
+  dismissed: (atStep: number) => {
+    posthog.capture('paywall_dismissed', {
+      dismissed_at_step: atStep,
+    });
+  },
+
+  // Step tracking (3-step paywall)
+  stepViewed: (stepNumber: 1 | 2 | 3) => {
+    posthog.capture('paywall_step_viewed', {
+      step: stepNumber,
+    });
+  },
+
+  // Trial events
+  trialStarted: (priceId?: string) => {
+    posthog.capture('trial_started', {
+      price_id: priceId,
+      started_at: new Date().toISOString(),
+    });
+  },
+
+  trialRemindLater: () => {
+    posthog.capture('trial_remind_later');
+  },
+
+  // Conversion events
+  purchaseInitiated: (productId: string, price: number) => {
+    posthog.capture('purchase_initiated', {
+      product_id: productId,
+      price,
+    });
+  },
+
+  purchaseCompleted: (productId: string, price: number, currency: string) => {
+    posthog.capture('purchase_completed', {
+      product_id: productId,
+      price,
+      currency,
+      revenue: price,
+    });
+  },
+
+  purchaseFailed: (productId: string, errorMessage: string) => {
+    posthog.capture('purchase_failed', {
+      product_id: productId,
+      error: errorMessage,
+    });
+  },
+
+  purchaseCancelled: (productId: string) => {
+    posthog.capture('purchase_cancelled', {
+      product_id: productId,
+    });
+  },
+};
+
+// ============================================
+// SESSION EVENTS
+// ============================================
+
+export const SessionEvents = {
+  // Recording
+  recordingStarted: () => {
+    posthog.capture('recording_started');
+  },
+
+  recordingCompleted: (durationSeconds: number) => {
+    posthog.capture('recording_completed', {
+      duration_seconds: durationSeconds,
+    });
+  },
+
+  recordingCancelled: (durationSeconds: number) => {
+    posthog.capture('recording_cancelled', {
+      duration_seconds: durationSeconds,
+    });
+  },
+
+  // Processing
+  processingStarted: () => {
+    posthog.capture('processing_started');
+  },
+
+  processingCompleted: (durationSeconds: number) => {
+    posthog.capture('processing_completed', {
+      processing_time_seconds: durationSeconds,
+    });
+  },
+
+  processingFailed: (errorMessage: string) => {
+    posthog.capture('processing_failed', {
+      error: errorMessage,
+    });
+  },
+
+  // Output
+  outputViewed: () => {
+    posthog.capture('output_viewed');
+  },
+
+  outputSaved: (taskCount: number) => {
+    posthog.capture('output_saved', {
+      task_count: taskCount,
+    });
+  },
+};
+
+// ============================================
+// TASK EVENTS
+// ============================================
+
+export const TaskEvents = {
+  completed: (taskId: string, entryId: string) => {
+    posthog.capture('task_completed', {
+      task_id: taskId,
+      entry_id: entryId,
+    });
+  },
+
+  uncompleted: (taskId: string, entryId: string) => {
+    posthog.capture('task_uncompleted', {
+      task_id: taskId,
+      entry_id: entryId,
+    });
+  },
+
+  allCompleted: (entryId: string, totalTasks: number) => {
+    posthog.capture('all_tasks_completed', {
+      entry_id: entryId,
+      total_tasks: totalTasks,
+    });
+  },
+};
+
+// ============================================
+// RETENTION EVENTS
+// ============================================
+
+export const RetentionEvents = {
+  appOpened: (sessionNumber: number, daysSinceInstall: number) => {
+    posthog.capture('app_opened', {
+      session_number: sessionNumber,
+      days_since_install: daysSinceInstall,
+    });
+  },
+
+  streakMilestone: (streakDays: number) => {
+    posthog.capture('streak_milestone', {
+      streak_days: streakDays,
+    });
+  },
+
+  streakLost: (previousStreak: number) => {
+    posthog.capture('streak_lost', {
+      previous_streak: previousStreak,
+    });
+  },
+
+  tutorialCompleted: () => {
+    posthog.capture('tutorial_completed');
+  },
+
+  tutorialSkipped: (atStep: number) => {
+    posthog.capture('tutorial_skipped', {
+      skipped_at_step: atStep,
+    });
+  },
+
+  favoriteAdded: (entryId: string) => {
+    posthog.capture('favorite_added', {
+      entry_id: entryId,
+    });
+  },
+
+  favoriteRemoved: (entryId: string) => {
+    posthog.capture('favorite_removed', {
+      entry_id: entryId,
+    });
+  },
+};
+
+// ============================================
+// SETTINGS/ENGAGEMENT EVENTS
+// ============================================
+
+export const EngagementEvents = {
+  settingsOpened: () => {
+    posthog.capture('settings_opened');
+  },
+
+  themeChanged: (theme: 'light' | 'dark' | 'system') => {
+    posthog.capture('theme_changed', {
+      new_theme: theme,
+    });
+  },
+
+  languageChanged: (language: string) => {
+    posthog.capture('language_changed', {
+      new_language: language,
+    });
+  },
+
+  feedbackSubmitted: (type: 'bug' | 'feature' | 'general') => {
+    posthog.capture('feedback_submitted', {
+      feedback_type: type,
+    });
+  },
+
+  notificationsToggled: (enabled: boolean) => {
+    posthog.capture('notifications_toggled', {
+      enabled,
+    });
+  },
+
+  shareAttempted: (contentType: 'session' | 'task' | 'app') => {
+    posthog.capture('share_attempted', {
+      content_type: contentType,
+    });
+  },
+};
+
+// ============================================
+// USER PROPERTIES
+// ============================================
+
+export const UserProperties = {
+  setSubscriptionStatus: (status: 'free' | 'trial' | 'premium' | 'expired') => {
+    posthog.capture('$set', {
+      $set: {
+        subscription_status: status,
+      },
+    });
+  },
+
+  setOnboardingCompleted: (completed: boolean) => {
+    posthog.capture('$set', {
+      $set: {
+        onboarding_completed: completed,
+      },
+    });
+  },
+
+  setTotalSessions: (count: number) => {
+    posthog.capture('$set', {
+      $set: {
+        total_sessions: count,
+      },
+    });
+  },
+
+  setCurrentStreak: (days: number) => {
+    posthog.capture('$set', {
+      $set: {
+        current_streak: days,
+      },
+    });
+  },
+
+  setDemographics: (age: string, gender: string) => {
+    posthog.capture('$set', {
+      $set: {
+        age_range: age,
+        gender: gender,
+      },
+    });
+  },
+};
+
+// ============================================
+// RECORDING EVENTS
+// ============================================
+
+export function trackRecordingStarted() {
+  posthog.capture('recording_started', {
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export function trackRecordingStopped(durationSeconds: number) {
+  posthog.capture('recording_stopped', {
+    duration_seconds: durationSeconds,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// ============================================
+// TASK EVENTS
+// ============================================
+
+export function trackTaskCompleted(data: { taskId: string; duration: number; sessionId?: string }) {
+  posthog.capture('task_completed', {
+    task_id: data.taskId,
+    duration_minutes: data.duration,
+    session_id: data.sessionId,
+  });
+}
+
+export function trackTaskAdded(durationMinutes: number) {
+  posthog.capture('task_added', {
+    duration_minutes: durationMinutes,
+  });
+}
+
+export function trackTaskRemoved() {
+  posthog.capture('task_removed');
+}
+
+// ============================================
+// AUTH EVENTS
+// ============================================
+
+export function trackSignUp(method: string = 'email') {
+  posthog.capture('user_signed_up', {
+    method,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export function trackSignIn(method: string = 'email') {
+  posthog.capture('user_signed_in', {
+    method,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// ============================================
+// FUNNEL HELPERS
+// ============================================
+
+export const FunnelHelpers = {
+  // Track complete onboarding funnel
+  trackOnboardingFunnel: (steps: { name: string; completed: boolean; duration?: number }[]) => {
+    const completedSteps = steps.filter(s => s.completed).length;
+    const totalSteps = steps.length;
+    const dropOffStep = steps.findIndex(s => !s.completed);
+
+    posthog.capture('onboarding_funnel', {
+      completed_steps: completedSteps,
+      total_steps: totalSteps,
+      completion_rate: completedSteps / totalSteps,
+      drop_off_step: dropOffStep === -1 ? null : dropOffStep + 1,
+      steps: steps,
+    });
+  },
+
+  // Track paywall funnel
+  trackPaywallFunnel: (viewedSteps: number[], converted: boolean, selectedPlan?: string) => {
+    posthog.capture('paywall_funnel', {
+      viewed_steps: viewedSteps,
+      highest_step: Math.max(...viewedSteps),
+      converted,
+      selected_plan: selectedPlan,
+    });
+  },
+};
