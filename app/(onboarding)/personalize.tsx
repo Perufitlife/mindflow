@@ -1,14 +1,14 @@
-// app/(onboarding)/personalize.tsx - Quick Personalization Screen
-// 2 simple questions before first session
+// app/(onboarding)/personalize.tsx - Challenge Screen (Simplified)
+// One question per screen for better UX
 
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { COLORS } from '../../constants/brand';
 import { signInAnonymously } from '../../services/auth';
-import { updatePreferences, markOnboardingComplete } from '../../services/user';
+import { updatePreferences } from '../../services/user';
 import { OnboardingEvents } from '../../services/analytics';
 import OnboardingProgressBar from '../../components/OnboardingProgressBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,40 +20,30 @@ const CHALLENGES = [
   { id: 'anxiety', label: 'Anxiety & stress', icon: 'pulse-outline' },
 ];
 
-const TIMES = [
-  { id: 'morning', label: 'Morning routine', icon: 'sunny-outline', description: 'Start your day with clarity' },
-  { id: 'evening', label: 'Evening wind-down', icon: 'moon-outline', description: 'Reflect and plan for tomorrow' },
-  { id: 'flexible', label: 'Whenever I need it', icon: 'time-outline', description: 'No fixed schedule' },
-];
-
-export default function PersonalizeScreen() {
+export default function ChallengeScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ name?: string }>();
-  const [challenge, setChallenge] = useState('overwhelmed');
-  const [time, setTime] = useState('flexible');
+  const [challenge, setChallenge] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const userName = params.name || '';
+  const canContinue = challenge.length > 0;
 
   useEffect(() => {
     OnboardingEvents.personalizeViewed();
   }, []);
 
-  const handleStartFirstSession = async () => {
+  const handleContinue = async () => {
     setIsLoading(true);
     
     try {
       // Track personalization choices
       OnboardingEvents.personalizeSelected(challenge);
-      OnboardingEvents.stepCompleted(4, 'personalize', {
+      OnboardingEvents.stepCompleted(4, 'challenge', {
         challenge,
-        preferred_time: time,
       });
 
-      // Save preferences including challenge for commit screen
+      // Save preferences
       await updatePreferences({
         goals: [challenge],
-        frequency: time as 'morning' | 'evening' | 'flexible',
       });
       
       // Save challenge for commit screen
@@ -62,14 +52,10 @@ export default function PersonalizeScreen() {
       // Create anonymous user for the session
       await signInAnonymously();
 
-      // Mark that user is in "first session" mode (not fully onboarded yet)
-      // They'll complete onboarding after first session + trial acceptance
-      
-      // Navigate to notifications screen (then commitment)
+      // Navigate to notifications screen
       router.push('/(onboarding)/notifications');
     } catch (error) {
-      console.error('Error in personalize:', error);
-      // Still proceed even if there's an error
+      console.error('Error in challenge:', error);
       router.push('/(onboarding)/notifications');
     } finally {
       setIsLoading(false);
@@ -81,12 +67,8 @@ export default function PersonalizeScreen() {
       {/* Progress Bar */}
       <OnboardingProgressBar currentStep={4} totalSteps={6} />
 
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
+      <View style={styles.content}>
+        {/* Back button */}
         <Animated.View entering={FadeInUp.delay(100).duration(500)}>
           <TouchableOpacity
             style={styles.backButton}
@@ -96,115 +78,66 @@ export default function PersonalizeScreen() {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Question 1: Challenge */}
+        {/* Question */}
         <Animated.View entering={FadeInUp.delay(200).duration(500)}>
           <Text style={styles.questionTitle}>What's your biggest challenge?</Text>
-          
-          <View style={styles.optionsGrid}>
-            {CHALLENGES.map((item, index) => (
-              <Animated.View
-                key={item.id}
-                entering={FadeIn.delay(300 + index * 50).duration(300)}
-                style={styles.optionWrapper}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.optionCard,
-                    challenge === item.id && styles.optionCardSelected,
-                  ]}
-                  onPress={() => setChallenge(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={item.icon as any}
-                    size={24}
-                    color={challenge === item.id ? COLORS.primary : '#6B7280'}
-                  />
-                  <Text
-                    style={[
-                      styles.optionLabel,
-                      challenge === item.id && styles.optionLabelSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  {challenge === item.id && (
-                    <View style={styles.checkmark}>
-                      <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
-          </View>
         </Animated.View>
 
-        {/* Question 2: Time */}
-        <Animated.View entering={FadeInUp.delay(500).duration(500)} style={styles.question2}>
-          <Text style={styles.questionTitle}>When do you want reminders?</Text>
-          
-          <View style={styles.timeOptions}>
-            {TIMES.map((item, index) => (
-              <Animated.View
-                key={item.id}
-                entering={FadeIn.delay(600 + index * 50).duration(300)}
+        {/* Options */}
+        <View style={styles.optionsGrid}>
+          {CHALLENGES.map((item, index) => (
+            <Animated.View
+              key={item.id}
+              entering={FadeIn.delay(300 + index * 80).duration(400)}
+              style={styles.optionWrapper}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.optionCard,
+                  challenge === item.id && styles.optionCardSelected,
+                ]}
+                onPress={() => setChallenge(item.id)}
+                activeOpacity={0.7}
               >
-                <TouchableOpacity
+                <Ionicons
+                  name={item.icon as any}
+                  size={32}
+                  color={challenge === item.id ? COLORS.primary : '#6B7280'}
+                />
+                <Text
                   style={[
-                    styles.timeCard,
-                    time === item.id && styles.timeCardSelected,
+                    styles.optionLabel,
+                    challenge === item.id && styles.optionLabelSelected,
                   ]}
-                  onPress={() => setTime(item.id)}
-                  activeOpacity={0.7}
                 >
-                  <View style={[
-                    styles.timeIcon,
-                    time === item.id && styles.timeIconSelected,
-                  ]}>
-                    <Ionicons
-                      name={item.icon as any}
-                      size={22}
-                      color={time === item.id ? '#FFFFFF' : COLORS.primary}
-                    />
+                  {item.label}
+                </Text>
+                {challenge === item.id && (
+                  <View style={styles.checkmark}>
+                    <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
                   </View>
-                  <View style={styles.timeContent}>
-                    <Text style={[
-                      styles.timeLabel,
-                      time === item.id && styles.timeLabelSelected,
-                    ]}>
-                      {item.label}
-                    </Text>
-                    <Text style={styles.timeDescription}>{item.description}</Text>
-                  </View>
-                  {time === item.id && (
-                    <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
-          </View>
-        </Animated.View>
-      </ScrollView>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          ))}
+        </View>
+      </View>
 
       {/* Footer */}
       <Animated.View
-        entering={FadeInUp.delay(800).duration(500)}
+        entering={FadeInUp.delay(600).duration(500)}
         style={styles.footer}
       >
         <TouchableOpacity
-          style={[styles.button, isLoading && styles.buttonDisabled]}
-          onPress={handleStartFirstSession}
-          disabled={isLoading}
+          style={[styles.button, (!canContinue || isLoading) && styles.buttonDisabled]}
+          onPress={handleContinue}
+          disabled={!canContinue || isLoading}
         >
-          <Ionicons name="mic" size={22} color="#FFFFFF" />
           <Text style={styles.buttonText}>
-            {isLoading ? 'Setting up...' : 'Try my first session free'}
+            {isLoading ? 'Setting up...' : 'Continue'}
           </Text>
+          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
-
-        <Text style={styles.freeNote}>
-          No credit card required
-        </Text>
       </Animated.View>
     </View>
   );
@@ -216,13 +149,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingTop: 50,
   },
-  scrollView: {
+  content: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingTop: 16,
     paddingHorizontal: 24,
-    paddingBottom: 20,
+    paddingTop: 16,
   },
   backButton: {
     width: 40,
@@ -231,47 +161,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  questionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.primary,
-    letterSpacing: 1,
-    marginBottom: 8,
+    marginBottom: 32,
   },
   questionTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 20,
+    marginBottom: 32,
   },
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 16,
   },
   optionWrapper: {
-    width: '48%',
+    width: '47%',
   },
   optionCard: {
     backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
     position: 'relative',
+    minHeight: 120,
+    justifyContent: 'center',
   },
   optionCardSelected: {
     backgroundColor: '#EEF2FF',
     borderColor: COLORS.primary,
   },
   optionLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#374151',
-    marginTop: 10,
+    marginTop: 12,
     textAlign: 'center',
   },
   optionLabelSelected: {
@@ -279,86 +204,31 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-  },
-  question2: {
-    marginTop: 36,
-  },
-  timeOptions: {
-    gap: 12,
-  },
-  timeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  timeCardSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: COLORS.primary,
-  },
-  timeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  timeIconSelected: {
-    backgroundColor: COLORS.primary,
-  },
-  timeContent: {
-    flex: 1,
-  },
-  timeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  timeLabelSelected: {
-    color: COLORS.primary,
-  },
-  timeDescription: {
-    fontSize: 14,
-    color: '#6B7280',
+    top: 12,
+    right: 12,
   },
   footer: {
     paddingHorizontal: 24,
     paddingBottom: 50,
     paddingTop: 16,
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    gap: 12,
   },
   button: {
     flexDirection: 'row',
-    backgroundColor: '#111827',
+    backgroundColor: COLORS.primary,
     borderRadius: 16,
     paddingVertical: 18,
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.5,
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
-  },
-  freeNote: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
   },
 });
