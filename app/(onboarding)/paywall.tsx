@@ -17,14 +17,8 @@ import {
 import { PurchasesPackage } from 'react-native-purchases';
 import Animated, {
   FadeIn,
-  FadeInUp,
   SlideInRight,
   SlideOutLeft,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
 } from 'react-native-reanimated';
 import { COLORS } from '../../constants/brand';
 import { TRIAL_CONFIG, FALLBACK_PRICES } from '../../config/revenuecat';
@@ -38,6 +32,7 @@ import {
 } from '../../services/subscriptions';
 
 type PaywallStep = 1 | 2 | 3;
+type PlanType = 'yearly' | 'monthly';
 
 export default function OnboardingPaywall() {
   const router = useRouter();
@@ -51,39 +46,33 @@ export default function OnboardingPaywall() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [userName, setUserName] = useState('');
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
+  
+  // Packages from RevenueCat
   const [yearlyPackage, setYearlyPackage] = useState<PurchasesPackage | null>(null);
   const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
-  const [priceInfo, setPriceInfo] = useState({
-    price: FALLBACK_PRICES.yearly.pricePerMonth,
-    period: '/month',
-    fullPrice: FALLBACK_PRICES.yearly.price,
+  
+  // Price info for both plans
+  const [yearlyPrice, setYearlyPrice] = useState({
+    price: FALLBACK_PRICES.yearly.price,
+    pricePerMonth: FALLBACK_PRICES.yearly.pricePerMonth,
     hasFreeTrial: true,
     freeTrialDays: TRIAL_CONFIG.durationDays,
   });
   
-  // Pulse animation for urgency
-  const urgencyPulse = useSharedValue(1);
+  const [monthlyPrice, setMonthlyPrice] = useState({
+    price: FALLBACK_PRICES.monthly.price,
+    pricePerMonth: FALLBACK_PRICES.monthly.pricePerMonth,
+    hasFreeTrial: true,
+    freeTrialDays: TRIAL_CONFIG.durationDays,
+  });
 
   useEffect(() => {
     PaywallEvents.shown('onboarding');
     PaywallEvents.stepViewed(1);
     loadUserName();
     loadOfferings();
-    
-    // Pulse animation
-    urgencyPulse.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 500 }),
-        withTiming(1, { duration: 500 })
-      ),
-      -1,
-      true
-    );
   }, []);
-
-  const urgencyStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: urgencyPulse.value }],
-  }));
 
   async function loadUserName() {
     try {
@@ -104,16 +93,23 @@ export default function OnboardingPaywall() {
         if (yearly) {
           setYearlyPackage(yearly);
           const info = getPackagePrice(yearly);
-          setPriceInfo({
-            price: info.pricePerMonth,
-            period: '/month',
-            fullPrice: info.price,
+          setYearlyPrice({
+            price: info.price,
+            pricePerMonth: info.pricePerMonth,
             hasFreeTrial: info.hasFreeTrial,
             freeTrialDays: info.freeTrialDays || TRIAL_CONFIG.durationDays,
           });
         }
+        
         if (monthly) {
           setMonthlyPackage(monthly);
+          const info = getPackagePrice(monthly);
+          setMonthlyPrice({
+            price: info.price,
+            pricePerMonth: info.pricePerMonth,
+            hasFreeTrial: info.hasFreeTrial,
+            freeTrialDays: info.freeTrialDays || TRIAL_CONFIG.durationDays,
+          });
         }
       }
     } catch (error) {
@@ -143,8 +139,8 @@ export default function OnboardingPaywall() {
   };
 
   const handleStartTrial = async () => {
-    // Use yearly package by default (best value with trial)
-    const pkg = yearlyPackage || monthlyPackage;
+    // Select package based on user choice
+    const pkg = selectedPlan === 'yearly' ? yearlyPackage : monthlyPackage;
     
     if (!pkg) {
       // RevenueCat not available (Expo Go) - skip to app
@@ -179,9 +175,11 @@ export default function OnboardingPaywall() {
         
         await markOnboardingComplete();
         
+        const trialDays = selectedPlan === 'yearly' ? yearlyPrice.freeTrialDays : monthlyPrice.freeTrialDays;
+        
         Alert.alert(
           'Welcome to Unbind! 🎉',
-          `Your ${priceInfo.freeTrialDays}-day free trial has started. Let's beat procrastination!`,
+          `Your ${trialDays}-day free trial has started. Let's beat procrastination!`,
           [{ text: "Let's go!", onPress: () => router.replace('/(tabs)') }]
         );
       } else if (result.error === 'cancelled') {
@@ -225,6 +223,15 @@ export default function OnboardingPaywall() {
     router.replace('/(tabs)');
   };
 
+  // Calculate savings
+  const monthlyCostIfPaidMonthly = parseFloat(monthlyPrice.price.replace('$', '')) * 12;
+  const yearlyCost = parseFloat(yearlyPrice.price.replace('$', ''));
+  const savingsPercent = Math.round(((monthlyCostIfPaidMonthly - yearlyCost) / monthlyCostIfPaidMonthly) * 100);
+
+  // Current selected price info
+  const currentPrice = selectedPlan === 'yearly' ? yearlyPrice : monthlyPrice;
+  const trialDays = currentPrice.freeTrialDays;
+
   // Step indicators
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
@@ -238,6 +245,86 @@ export default function OnboardingPaywall() {
           ]}
         />
       ))}
+    </View>
+  );
+
+  // Plan selector component
+  const renderPlanSelector = () => (
+    <View style={styles.planSelector}>
+      {/* Yearly Plan */}
+      <TouchableOpacity
+        style={[
+          styles.planOption,
+          selectedPlan === 'yearly' && styles.planOptionSelected,
+        ]}
+        onPress={() => setSelectedPlan('yearly')}
+        activeOpacity={0.8}
+      >
+        {savingsPercent > 0 && (
+          <View style={styles.savingsBadge}>
+            <Text style={styles.savingsBadgeText}>SAVE {savingsPercent}%</Text>
+          </View>
+        )}
+        <View style={styles.planHeader}>
+          <View style={[
+            styles.radioCircle,
+            selectedPlan === 'yearly' && styles.radioCircleSelected,
+          ]}>
+            {selectedPlan === 'yearly' && <View style={styles.radioInner} />}
+          </View>
+          <Text style={[
+            styles.planName,
+            selectedPlan === 'yearly' && styles.planNameSelected,
+          ]}>
+            Yearly
+          </Text>
+        </View>
+        <View style={styles.planPricing}>
+          <Text style={[
+            styles.planPrice,
+            selectedPlan === 'yearly' && styles.planPriceSelected,
+          ]}>
+            {yearlyPrice.pricePerMonth}
+          </Text>
+          <Text style={styles.planPeriod}>/month</Text>
+        </View>
+        <Text style={styles.planBilled}>Billed as {yearlyPrice.price}/year</Text>
+      </TouchableOpacity>
+
+      {/* Monthly Plan */}
+      <TouchableOpacity
+        style={[
+          styles.planOption,
+          selectedPlan === 'monthly' && styles.planOptionSelected,
+        ]}
+        onPress={() => setSelectedPlan('monthly')}
+        activeOpacity={0.8}
+      >
+        <View style={styles.planHeader}>
+          <View style={[
+            styles.radioCircle,
+            selectedPlan === 'monthly' && styles.radioCircleSelected,
+          ]}>
+            {selectedPlan === 'monthly' && <View style={styles.radioInner} />}
+          </View>
+          <Text style={[
+            styles.planName,
+            selectedPlan === 'monthly' && styles.planNameSelected,
+          ]}>
+            Monthly
+          </Text>
+        </View>
+        <View style={styles.planPricing}>
+          <Text style={[
+            styles.planPrice,
+            selectedPlan === 'monthly' && styles.planPriceSelected,
+          ]}>
+            {monthlyPrice.price}
+          </Text>
+          <Text style={styles.planPeriod}>/month</Text>
+        </View>
+        <Text style={styles.planBilled}>Billed monthly</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -259,13 +346,13 @@ export default function OnboardingPaywall() {
         
         <Text style={styles.stepTitle}>Try Unbind free</Text>
         <Text style={styles.stepSubtitle}>
-          {priceInfo.freeTrialDays} days free, then {priceInfo.price}{priceInfo.period}
+          {trialDays} days free, then {currentPrice.pricePerMonth}/month
         </Text>
         
         <View style={styles.benefitsList}>
           <View style={styles.benefitItem}>
             <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>{priceInfo.freeTrialDays} days completely free</Text>
+            <Text style={styles.benefitText}>{trialDays} days completely free</Text>
           </View>
           <View style={styles.benefitItem}>
             <Ionicons name="checkmark-circle" size={22} color="#10B981" />
@@ -324,7 +411,7 @@ export default function OnboardingPaywall() {
               <Ionicons name="notifications" size={14} color="#F59E0B" />
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Day {priceInfo.freeTrialDays - 1}</Text>
+              <Text style={styles.timelineDay}>Day {trialDays - 1}</Text>
               <Text style={styles.timelineText}>Reminder notification</Text>
             </View>
           </View>
@@ -336,7 +423,7 @@ export default function OnboardingPaywall() {
               <Ionicons name="card" size={14} color={COLORS.primary} />
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Day {priceInfo.freeTrialDays}</Text>
+              <Text style={styles.timelineDay}>Day {trialDays}</Text>
               <Text style={styles.timelineText}>First payment (if you stay)</Text>
             </View>
           </View>
@@ -358,7 +445,7 @@ export default function OnboardingPaywall() {
     </Animated.View>
   );
 
-  // STEP 3: Final CTA
+  // STEP 3: Plan Selection + CTA
   const renderStep3 = () => (
     <Animated.View
       entering={SlideInRight.duration(400)}
@@ -369,14 +456,16 @@ export default function OnboardingPaywall() {
         contentContainerStyle={styles.stepScrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.iconCircle, { backgroundColor: '#D1FAE5' }]}>
-          <Ionicons name="sparkles" size={48} color="#10B981" />
-        </View>
-        
         <Text style={styles.stepTitle}>
-          {userName ? `Ready, ${userName}?` : "Ready to start?"}
+          {userName ? `Choose your plan, ${userName}` : "Choose your plan"}
+        </Text>
+        <Text style={styles.stepSubtitle}>
+          Start with {trialDays} days free
         </Text>
         
+        {/* Plan Selector */}
+        {renderPlanSelector()}
+
         {/* What they created */}
         {parsedTasks.length > 0 && (
           <View style={styles.achievementCard}>
@@ -405,16 +494,6 @@ export default function OnboardingPaywall() {
             <Text style={styles.featureText}>Progress</Text>
           </View>
         </View>
-
-        {/* Price display */}
-        <View style={styles.priceCard}>
-          <Text style={styles.priceLabel}>After free trial:</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceMain}>{priceInfo.price}</Text>
-            <Text style={styles.pricePeriod}>{priceInfo.period}</Text>
-          </View>
-          <Text style={styles.priceBilled}>Billed as {priceInfo.fullPrice}/year</Text>
-        </View>
       </ScrollView>
 
       <View style={styles.fixedFooterLarge}>
@@ -430,11 +509,9 @@ export default function OnboardingPaywall() {
               {purchasing ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>
-                    Start {priceInfo.freeTrialDays}-day free trial
-                  </Text>
-                </>
+                <Text style={styles.primaryButtonText}>
+                  Start {trialDays}-day free trial
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -449,7 +526,9 @@ export default function OnboardingPaywall() {
             </View>
 
             <Text style={styles.legalText}>
-              {priceInfo.freeTrialDays}-day free trial, then {priceInfo.fullPrice}/year. Cancel anytime.
+              {trialDays}-day free trial, then {selectedPlan === 'yearly' 
+                ? `${yearlyPrice.price}/year` 
+                : `${monthlyPrice.price}/month`}. Cancel anytime.
             </Text>
           </>
         )}
@@ -589,6 +668,95 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
+  
+  // Plan Selector Styles
+  planSelector: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 24,
+  },
+  planOption: {
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 16,
+    position: 'relative',
+  },
+  planOptionSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#F5F3FF',
+  },
+  savingsBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 16,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  savingsBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  radioCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioCircleSelected: {
+    borderColor: COLORS.primary,
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+  },
+  planName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  planNameSelected: {
+    color: COLORS.primary,
+  },
+  planPricing: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginLeft: 36,
+  },
+  planPrice: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  planPriceSelected: {
+    color: COLORS.primary,
+  },
+  planPeriod: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 2,
+  },
+  planBilled: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginLeft: 36,
+    marginTop: 4,
+  },
+  
   achievementCard: {
     width: '100%',
     backgroundColor: '#F0FDF4',
@@ -627,37 +795,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
-  },
-  priceCard: {
-    width: '100%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-  },
-  priceLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  priceMain: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  pricePeriod: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginLeft: 4,
-  },
-  priceBilled: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginTop: 4,
   },
   fixedFooter: {
     paddingHorizontal: 24,

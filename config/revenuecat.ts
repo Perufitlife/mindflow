@@ -9,20 +9,20 @@ import Constants from 'expo-constants';
 const isExpoGo = Constants.appOwnership === 'expo';
 
 // API Keys (Public - safe to include in client)
-// Test Store key for Expo Go development
-const REVENUECAT_TEST_KEY = 'test_zpEfAbbFzbvUBeBIdyRMuEvSGfr';
-// Production keys for development builds
-const REVENUECAT_API_KEY_IOS = 'sk_dbUZQTKUstOPadebxzQBCxIMfXpSM';
-const REVENUECAT_API_KEY_ANDROID = 'sk_dbUZQTKUstOPadebxzQBCxIMfXpSM';
+// IMPORTANT: Use PUBLIC keys (appl_ for iOS, goog_ for Android)
+// Find them in RevenueCat Dashboard → API Keys → Public API key
 
-// Use Test Store key in Expo Go, production keys in dev builds
-export const REVENUECAT_API_KEY = isExpoGo
-  ? REVENUECAT_TEST_KEY
-  : Platform.select({
-      ios: REVENUECAT_API_KEY_IOS,
-      android: REVENUECAT_API_KEY_ANDROID,
-      default: REVENUECAT_API_KEY_IOS,
-    });
+// TODO: Replace with your actual PUBLIC API keys from RevenueCat Dashboard
+const REVENUECAT_API_KEY_IOS = 'appl_YOUR_IOS_PUBLIC_KEY_HERE';
+const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ANDROID_PUBLIC_KEY_HERE';
+
+// Select API key based on platform
+// Note: RevenueCat purchases don't work in Expo Go - need development build
+export const REVENUECAT_API_KEY = Platform.select({
+  ios: REVENUECAT_API_KEY_IOS,
+  android: REVENUECAT_API_KEY_ANDROID,
+  default: REVENUECAT_API_KEY_IOS,
+});
 
 // Entitlement identifier
 export const ENTITLEMENT_ID = 'premium';
