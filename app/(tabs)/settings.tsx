@@ -259,14 +259,14 @@ export default function SettingsScreen() {
             icon="help-circle-outline"
             iconColor="#F59E0B"
             title={t('settings.help')}
-            onPress={() => Alert.alert(t('settings.coming_soon'), 'Help section coming soon!')}
+            onPress={() => Linking.openURL('https://unbindapp.com/support.html')}
           />
           <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
           <SettingRow
             icon="mail-outline"
             iconColor="#3B82F6"
             title={t('settings.contact')}
-            onPress={() => Alert.alert('Contact', 'support@unbind.app')}
+            onPress={() => Linking.openURL('mailto:support@unbindapp.com')}
           />
           <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
           <SettingRow
@@ -274,6 +274,25 @@ export default function SettingsScreen() {
             iconColor="#EC4899"
             title={t('settings.rate')}
             onPress={() => Alert.alert('Thank you!', 'Rating coming soon.')}
+          />
+        </View>
+
+        {/* Legal */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Legal</Text>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <SettingRow
+            icon="document-text-outline"
+            iconColor="#6B7280"
+            title="Privacy Policy"
+            subtitle="How we handle your data"
+            onPress={() => Linking.openURL('https://unbindapp.com/privacy.html')}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+          <SettingRow
+            icon="shield-checkmark-outline"
+            iconColor="#6B7280"
+            title="Terms of Service"
+            onPress={() => Linking.openURL('https://unbindapp.com/terms.html')}
           />
         </View>
 
