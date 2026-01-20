@@ -179,9 +179,9 @@ export default function NotificationsScreen() {
 
         {/* Header */}
         <Animated.View entering={FadeInUp.delay(300).duration(500)} style={styles.header}>
-          <Text style={styles.title}>Never miss your{'\n'}momentum</Text>
+          <Text style={styles.title}>Stay on track</Text>
           <Text style={styles.subtitle}>
-            We'll gently remind you to check in when it matters most
+            Get gentle reminders to keep your momentum going
           </Text>
         </Animated.View>
 

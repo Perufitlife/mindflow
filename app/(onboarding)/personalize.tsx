@@ -98,7 +98,6 @@ export default function PersonalizeScreen() {
 
         {/* Question 1: Challenge */}
         <Animated.View entering={FadeInUp.delay(200).duration(500)}>
-          <Text style={styles.questionLabel}>YOUR CHALLENGE</Text>
           <Text style={styles.questionTitle}>What's your biggest challenge?</Text>
           
           <View style={styles.optionsGrid}>
@@ -142,8 +141,7 @@ export default function PersonalizeScreen() {
 
         {/* Question 2: Time */}
         <Animated.View entering={FadeInUp.delay(500).duration(500)} style={styles.question2}>
-          <Text style={styles.questionLabel}>YOUR ROUTINE</Text>
-          <Text style={styles.questionTitle}>When would you like to journal?</Text>
+          <Text style={styles.questionTitle}>When do you want reminders?</Text>
           
           <View style={styles.timeOptions}>
             {TIMES.map((item, index) => (

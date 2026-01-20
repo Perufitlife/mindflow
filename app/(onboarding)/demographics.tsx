@@ -109,7 +109,6 @@ export default function DemographicsScreen() {
 
         {/* Name Input */}
         <Animated.View entering={FadeInUp.delay(200).duration(500)}>
-          <Text style={styles.sectionLabel}>LET'S GET TO KNOW YOU</Text>
           <Text style={styles.questionTitle}>What should we call you?</Text>
           
           <TextInput

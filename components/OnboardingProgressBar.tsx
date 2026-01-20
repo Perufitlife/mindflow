@@ -19,7 +19,7 @@ interface OnboardingProgressBarProps {
 export default function OnboardingProgressBar({
   currentStep,
   totalSteps,
-  showStepText = true,
+  showStepText = false, // Default to false - progress bar is sufficient
 }: OnboardingProgressBarProps) {
   const progress = currentStep / totalSteps;
 

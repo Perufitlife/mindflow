@@ -248,7 +248,6 @@ export default function CommitmentScreen() {
 
         {/* Header */}
         <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.header}>
-          <Text style={styles.label}>YOUR PERSONAL COMMITMENT</Text>
           <Text style={styles.title}>Make it official</Text>
         </Animated.View>
 
