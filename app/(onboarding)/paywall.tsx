@@ -1,18 +1,20 @@
-// app/(onboarding)/paywall.tsx - 3-Step Paywall (Arthur's method)
-// Step 1: Trial intro, Step 2: Reminder promise, Step 3: Value + CTA
+// app/(onboarding)/paywall.tsx - Onboarding Paywall with RevenueCat
+// Connects to RevenueCat for real subscriptions with free trial
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { PurchasesPackage } from 'react-native-purchases';
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -25,64 +27,17 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { COLORS } from '../../constants/brand';
-import { TRIAL_CONFIG } from '../../config/revenuecat';
-import { PLANS } from '../../config/plans';
-import { markOnboardingComplete, startTrial } from '../../services/user';
+import { TRIAL_CONFIG, FALLBACK_PRICES } from '../../config/revenuecat';
+import { markOnboardingComplete } from '../../services/user';
 import { PaywallEvents, OnboardingEvents, UserProperties } from '../../services/analytics';
+import {
+  getOfferings,
+  purchasePackage,
+  restorePurchases,
+  getPackagePrice,
+} from '../../services/subscriptions';
 
 type PaywallStep = 1 | 2 | 3;
-
-// Countdown timer hook
-function useCountdownTimer() {
-  const [timeLeft, setTimeLeft] = useState({ hours: 23, minutes: 59, seconds: 59 });
-  
-  useEffect(() => {
-    // Check if we have a saved end time
-    const loadTimer = async () => {
-      try {
-        const savedEndTime = await AsyncStorage.getItem('@paywall_timer_end');
-        let endTime: number;
-        
-        if (savedEndTime) {
-          endTime = parseInt(savedEndTime, 10);
-          // If timer has expired, reset it
-          if (Date.now() >= endTime) {
-            endTime = Date.now() + 24 * 60 * 60 * 1000;
-            await AsyncStorage.setItem('@paywall_timer_end', endTime.toString());
-          }
-        } else {
-          // First visit - set 24h timer
-          endTime = Date.now() + 24 * 60 * 60 * 1000;
-          await AsyncStorage.setItem('@paywall_timer_end', endTime.toString());
-        }
-        
-        // Update timer every second
-        const interval = setInterval(() => {
-          const now = Date.now();
-          const diff = endTime - now;
-          
-          if (diff <= 0) {
-            setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
-            clearInterval(interval);
-          } else {
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            setTimeLeft({ hours, minutes, seconds });
-          }
-        }, 1000);
-        
-        return () => clearInterval(interval);
-      } catch (e) {
-        console.error('Timer error:', e);
-      }
-    };
-    
-    loadTimer();
-  }, []);
-  
-  return timeLeft;
-}
 
 export default function OnboardingPaywall() {
   const router = useRouter();
@@ -93,9 +48,18 @@ export default function OnboardingPaywall() {
   }>();
   
   const [step, setStep] = useState<PaywallStep>(1);
-  const [activating, setActivating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState(false);
   const [userName, setUserName] = useState('');
-  const timeLeft = useCountdownTimer();
+  const [yearlyPackage, setYearlyPackage] = useState<PurchasesPackage | null>(null);
+  const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
+  const [priceInfo, setPriceInfo] = useState({
+    price: FALLBACK_PRICES.yearly.pricePerMonth,
+    period: '/month',
+    fullPrice: FALLBACK_PRICES.yearly.price,
+    hasFreeTrial: true,
+    freeTrialDays: TRIAL_CONFIG.durationDays,
+  });
   
   // Pulse animation for urgency
   const urgencyPulse = useSharedValue(1);
@@ -104,6 +68,7 @@ export default function OnboardingPaywall() {
     PaywallEvents.shown('onboarding');
     PaywallEvents.stepViewed(1);
     loadUserName();
+    loadOfferings();
     
     // Pulse animation
     urgencyPulse.value = withRepeat(
@@ -128,8 +93,36 @@ export default function OnboardingPaywall() {
       console.error('Error loading user name:', e);
     }
   }
-  
-  const formatTime = (num: number) => num.toString().padStart(2, '0');
+
+  async function loadOfferings() {
+    try {
+      const offering = await getOfferings();
+      if (offering?.availablePackages) {
+        const yearly = offering.availablePackages.find(p => p.packageType === 'ANNUAL');
+        const monthly = offering.availablePackages.find(p => p.packageType === 'MONTHLY');
+        
+        if (yearly) {
+          setYearlyPackage(yearly);
+          const info = getPackagePrice(yearly);
+          setPriceInfo({
+            price: info.pricePerMonth,
+            period: '/month',
+            fullPrice: info.price,
+            hasFreeTrial: info.hasFreeTrial,
+            freeTrialDays: info.freeTrialDays || TRIAL_CONFIG.durationDays,
+          });
+        }
+        if (monthly) {
+          setMonthlyPackage(monthly);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load offerings:', error);
+      // Will use fallback prices
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Parse tasks for display
   let parsedTasks: { title: string }[] = [];
@@ -150,29 +143,83 @@ export default function OnboardingPaywall() {
   };
 
   const handleStartTrial = async () => {
-    setActivating(true);
+    // Use yearly package by default (best value with trial)
+    const pkg = yearlyPackage || monthlyPackage;
+    
+    if (!pkg) {
+      // RevenueCat not available (Expo Go) - skip to app
+      Alert.alert(
+        'Purchases Unavailable',
+        'In-app purchases are not available in Expo Go. Please use a development build to test purchases.',
+        [
+          {
+            text: 'Continue Anyway',
+            onPress: async () => {
+              await markOnboardingComplete();
+              router.replace('/(tabs)');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    setPurchasing(true);
+    
     try {
-      await startTrial();
-      await markOnboardingComplete();
-      
-      // Track events
       PaywallEvents.trialStarted();
-      OnboardingEvents.completed(0); // TODO: track actual time
-      UserProperties.setSubscriptionStatus('trial');
-      UserProperties.setOnboardingCompleted(true);
       
-      router.replace('/(tabs)');
-    } catch (error) {
-      console.error('Failed to start trial:', error);
-      await markOnboardingComplete();
-      router.replace('/(tabs)');
+      const result = await purchasePackage(pkg);
+      
+      if (result.success) {
+        // Purchase successful!
+        OnboardingEvents.completed(0);
+        UserProperties.setSubscriptionStatus('trial');
+        UserProperties.setOnboardingCompleted(true);
+        
+        await markOnboardingComplete();
+        
+        Alert.alert(
+          'Welcome to Unbind! 🎉',
+          `Your ${priceInfo.freeTrialDays}-day free trial has started. Let's beat procrastination!`,
+          [{ text: "Let's go!", onPress: () => router.replace('/(tabs)') }]
+        );
+      } else if (result.error === 'cancelled') {
+        // User cancelled - do nothing
+        console.log('User cancelled purchase');
+      } else {
+        // Other error
+        Alert.alert('Error', result.error || 'Something went wrong. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Purchase error:', error);
+      Alert.alert('Error', error.message || 'Something went wrong.');
     } finally {
-      setActivating(false);
+      setPurchasing(false);
     }
   };
 
-  const handleRemindLater = async () => {
-    PaywallEvents.trialRemindLater();
+  const handleRestore = async () => {
+    setPurchasing(true);
+    try {
+      const result = await restorePurchases();
+      if (result.isPremium) {
+        await markOnboardingComplete();
+        UserProperties.setSubscriptionStatus('premium');
+        Alert.alert('Welcome Back!', 'Your subscription has been restored.', [
+          { text: 'Continue', onPress: () => router.replace('/(tabs)') },
+        ]);
+      } else {
+        Alert.alert('No Subscription Found', "We couldn't find an active subscription for this account.");
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to restore purchases.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const handleSkip = async () => {
     PaywallEvents.dismissed(step);
     await markOnboardingComplete();
     router.replace('/(tabs)');
@@ -194,7 +241,7 @@ export default function OnboardingPaywall() {
     </View>
   );
 
-  // STEP 1: Trial Intro with Urgency
+  // STEP 1: Trial Intro
   const renderStep1 = () => (
     <Animated.View
       entering={FadeIn.duration(400)}
@@ -206,37 +253,27 @@ export default function OnboardingPaywall() {
         contentContainerStyle={styles.stepScrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Urgency Banner with Countdown */}
-        <Animated.View style={[styles.urgencyBanner, urgencyStyle]}>
-          <Ionicons name="time-outline" size={18} color="#F59E0B" />
-          <Text style={styles.urgencyText}>
-            Special offer expires in {formatTime(timeLeft.hours)}:{formatTime(timeLeft.minutes)}:{formatTime(timeLeft.seconds)}
-          </Text>
-        </Animated.View>
-
         <View style={styles.iconCircle}>
           <Ionicons name="gift-outline" size={48} color={COLORS.primary} />
         </View>
         
-        <Text style={styles.stepTitle}>Start your free journey</Text>
-        
-        {/* Value proposition */}
-        <Text style={styles.valueProposition}>
-          Valued at $197/year. Yours free for {TRIAL_CONFIG.durationDays} days.
+        <Text style={styles.stepTitle}>Try Unbind free</Text>
+        <Text style={styles.stepSubtitle}>
+          {priceInfo.freeTrialDays} days free, then {priceInfo.price}{priceInfo.period}
         </Text>
         
         <View style={styles.benefitsList}>
           <View style={styles.benefitItem}>
             <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>{TRIAL_CONFIG.durationDays} days completely free</Text>
+            <Text style={styles.benefitText}>{priceInfo.freeTrialDays} days completely free</Text>
           </View>
           <View style={styles.benefitItem}>
             <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>Full access to all features</Text>
+            <Text style={styles.benefitText}>Unlimited AI sessions</Text>
           </View>
           <View style={styles.benefitItem}>
             <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>No payment required now</Text>
+            <Text style={styles.benefitText}>Cancel anytime</Text>
           </View>
         </View>
       </ScrollView>
@@ -250,7 +287,7 @@ export default function OnboardingPaywall() {
     </Animated.View>
   );
 
-  // STEP 2: Reminder Promise
+  // STEP 2: How it works
   const renderStep2 = () => (
     <Animated.View
       entering={SlideInRight.duration(400)}
@@ -266,8 +303,8 @@ export default function OnboardingPaywall() {
           <Ionicons name="notifications-outline" size={48} color="#F59E0B" />
         </View>
         
-        <Text style={styles.stepTitle}>We'll remind you</Text>
-        <Text style={styles.stepSubtitle}>No surprises, no hidden charges</Text>
+        <Text style={styles.stepTitle}>No surprises</Text>
+        <Text style={styles.stepSubtitle}>We'll remind you before your trial ends</Text>
         
         <View style={styles.timeline}>
           <View style={styles.timelineItem}>
@@ -276,7 +313,7 @@ export default function OnboardingPaywall() {
             </View>
             <View style={styles.timelineContent}>
               <Text style={styles.timelineDay}>Today</Text>
-              <Text style={styles.timelineText}>Your free trial starts</Text>
+              <Text style={styles.timelineText}>Start your free trial</Text>
             </View>
           </View>
 
@@ -287,8 +324,8 @@ export default function OnboardingPaywall() {
               <Ionicons name="notifications" size={14} color="#F59E0B" />
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Day {TRIAL_CONFIG.durationDays - 1}</Text>
-              <Text style={styles.timelineText}>We'll send you a reminder</Text>
+              <Text style={styles.timelineDay}>Day {priceInfo.freeTrialDays - 1}</Text>
+              <Text style={styles.timelineText}>Reminder notification</Text>
             </View>
           </View>
 
@@ -296,52 +333,32 @@ export default function OnboardingPaywall() {
 
           <View style={styles.timelineItem}>
             <View style={styles.timelineDot}>
-              <Ionicons name="calendar" size={14} color={COLORS.primary} />
+              <Ionicons name="card" size={14} color={COLORS.primary} />
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Day {TRIAL_CONFIG.durationDays}</Text>
-              <Text style={styles.timelineText}>You decide if it's for you</Text>
+              <Text style={styles.timelineDay}>Day {priceInfo.freeTrialDays}</Text>
+              <Text style={styles.timelineText}>First payment (if you stay)</Text>
             </View>
           </View>
         </View>
 
-        {/* Trust Badges */}
-        <View style={styles.trustBadges}>
-          <View style={styles.trustBadge}>
-            <Ionicons name="lock-closed" size={14} color="#10B981" />
-            <Text style={styles.trustBadgeText}>Encrypted</Text>
-          </View>
-          <View style={styles.trustBadge}>
-            <Ionicons name="shield-checkmark" size={14} color="#10B981" />
-            <Text style={styles.trustBadgeText}>No hidden fees</Text>
-          </View>
-          <View style={styles.trustBadge}>
-            <Ionicons name="heart" size={14} color="#10B981" />
-            <Text style={styles.trustBadgeText}>Cancel anytime</Text>
-          </View>
-        </View>
-
-        {/* App Store Rating */}
-        <View style={styles.appStoreRating}>
-          <View style={styles.stars}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Ionicons key={i} name="star" size={14} color="#F59E0B" />
-            ))}
-          </View>
-          <Text style={styles.ratingText}>4.9 on App Store</Text>
+        {/* Trust */}
+        <View style={styles.trustRow}>
+          <Ionicons name="shield-checkmark" size={18} color="#10B981" />
+          <Text style={styles.trustText}>Cancel anytime in Settings</Text>
         </View>
       </ScrollView>
 
       <View style={styles.fixedFooter}>
         <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
-          <Text style={styles.primaryButtonText}>Sounds good</Text>
+          <Text style={styles.primaryButtonText}>Got it</Text>
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </Animated.View>
   );
 
-  // STEP 3: Value + CTA + Loss Aversion
+  // STEP 3: Final CTA
   const renderStep3 = () => (
     <Animated.View
       entering={SlideInRight.duration(400)}
@@ -352,95 +369,90 @@ export default function OnboardingPaywall() {
         contentContainerStyle={styles.stepScrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.iconCircleSmall, { backgroundColor: '#D1FAE5' }]}>
-          <Ionicons name="sparkles" size={40} color="#10B981" />
+        <View style={[styles.iconCircle, { backgroundColor: '#D1FAE5' }]}>
+          <Ionicons name="sparkles" size={48} color="#10B981" />
         </View>
         
-        <Text style={styles.stepTitleSmall}>
-          {userName ? `${userName}, here's what you unlock` : "Here's what you unlock"}
+        <Text style={styles.stepTitle}>
+          {userName ? `Ready, ${userName}?` : "Ready to start?"}
         </Text>
         
-        {/* What they achieved */}
+        {/* What they created */}
         {parsedTasks.length > 0 && (
-          <View style={styles.achievementCardCompact}>
-            <Text style={styles.achievementLabel}>You just created:</Text>
+          <View style={styles.achievementCard}>
+            <Text style={styles.achievementLabel}>Your first micro-tasks:</Text>
             {parsedTasks.slice(0, 2).map((task, index) => (
               <View key={index} style={styles.taskRow}>
-                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                <Text style={styles.taskTextSmall} numberOfLines={1}>{task.title}</Text>
+                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
               </View>
             ))}
-            {parsedTasks.length > 2 && (
-              <Text style={styles.moreTasksText}>+{parsedTasks.length - 2} more tasks</Text>
-            )}
           </View>
         )}
 
-        {/* Loss Aversion Frame */}
-        <View style={styles.lossAversionCardCompact}>
-          <Text style={styles.lossAversionTitleSmall}>Without Unbind:</Text>
-          <View style={styles.lossItemCompact}>
-            <Ionicons name="close-circle" size={16} color="#EF4444" />
-            <Text style={styles.lossTextSmall}>Feel overwhelmed daily</Text>
+        {/* Features */}
+        <View style={styles.featuresGrid}>
+          <View style={styles.featureItem}>
+            <Ionicons name="infinite" size={24} color={COLORS.primary} />
+            <Text style={styles.featureText}>Unlimited</Text>
           </View>
-          <View style={styles.lossItemCompact}>
-            <Ionicons name="close-circle" size={16} color="#EF4444" />
-            <Text style={styles.lossTextSmall}>Keep procrastinating</Text>
+          <View style={styles.featureItem}>
+            <Ionicons name="flash" size={24} color={COLORS.primary} />
+            <Text style={styles.featureText}>AI Tasks</Text>
           </View>
-        </View>
-
-        {/* Premium features - compact */}
-        <View style={styles.featuresCompact}>
-          <View style={styles.featureItemCompact}>
-            <Ionicons name="infinite" size={18} color={COLORS.primary} />
-            <Text style={styles.featureTextSmall}>Unlimited sessions</Text>
-          </View>
-          <View style={styles.featureItemCompact}>
-            <Ionicons name="flash" size={18} color={COLORS.primary} />
-            <Text style={styles.featureTextSmall}>AI micro-tasks</Text>
-          </View>
-          <View style={styles.featureItemCompact}>
-            <Ionicons name="trending-up" size={18} color={COLORS.primary} />
-            <Text style={styles.featureTextSmall}>Progress tracking</Text>
+          <View style={styles.featureItem}>
+            <Ionicons name="trending-up" size={24} color={COLORS.primary} />
+            <Text style={styles.featureText}>Progress</Text>
           </View>
         </View>
 
-        {/* Guarantee */}
-        <View style={styles.guaranteeCompact}>
-          <Ionicons name="shield-checkmark" size={18} color="#10B981" />
-          <Text style={styles.guaranteeTextSmall}>100% satisfaction guarantee</Text>
+        {/* Price display */}
+        <View style={styles.priceCard}>
+          <Text style={styles.priceLabel}>After free trial:</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceMain}>{priceInfo.price}</Text>
+            <Text style={styles.pricePeriod}>{priceInfo.period}</Text>
+          </View>
+          <Text style={styles.priceBilled}>Billed as {priceInfo.fullPrice}/year</Text>
         </View>
       </ScrollView>
 
       <View style={styles.fixedFooterLarge}>
-        <TouchableOpacity
-          style={[styles.primaryButton, activating && styles.buttonDisabled]}
-          onPress={handleStartTrial}
-          disabled={activating}
-        >
-          {activating ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={styles.primaryButtonText}>
-                Start {TRIAL_CONFIG.durationDays}-day free trial
-              </Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
+        {loading ? (
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.primaryButton, purchasing && styles.buttonDisabled]}
+              onPress={handleStartTrial}
+              disabled={purchasing}
+            >
+              {purchasing ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>
+                    Start {priceInfo.freeTrialDays}-day free trial
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.secondaryButtonCompact}
-          onPress={handleRemindLater}
-          disabled={activating}
-        >
-          <Text style={styles.secondaryButtonText}>Remind me tomorrow</Text>
-        </TouchableOpacity>
+            <View style={styles.footerLinks}>
+              <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
+                <Text style={styles.linkText}>Restore</Text>
+              </TouchableOpacity>
+              <Text style={styles.linkDivider}>•</Text>
+              <TouchableOpacity onPress={handleSkip} disabled={purchasing}>
+                <Text style={styles.linkText}>Skip</Text>
+              </TouchableOpacity>
+            </View>
 
-        <Text style={styles.legalTextCompact}>
-          Free {TRIAL_CONFIG.durationDays} days, then ${PLANS.PREMIUM.priceMonthly}/mo. Cancel anytime.
-        </Text>
+            <Text style={styles.legalText}>
+              {priceInfo.freeTrialDays}-day free trial, then {priceInfo.fullPrice}/year. Cancel anytime.
+            </Text>
+          </>
+        )}
       </View>
     </Animated.View>
   );
@@ -481,12 +493,6 @@ const styles = StyleSheet.create({
   stepDotComplete: {
     backgroundColor: '#10B981',
   },
-  stepContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  // New responsive layout styles
   stepWrapper: {
     flex: 1,
   },
@@ -495,20 +501,8 @@ const styles = StyleSheet.create({
   },
   stepScrollContent: {
     paddingHorizontal: 24,
-    alignItems: 'center',
     paddingBottom: 20,
-  },
-  fixedFooter: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  fixedFooterLarge: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-    paddingTop: 12,
-    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
   },
   iconCircle: {
     width: 100,
@@ -517,33 +511,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  iconCircleSmall: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   stepTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
     marginBottom: 8,
   },
-  stepTitleSmall: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
   stepSubtitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 32,
@@ -551,8 +529,6 @@ const styles = StyleSheet.create({
   benefitsList: {
     width: '100%',
     gap: 16,
-    marginBottom: 32,
-    marginTop: 24,
   },
   benefitItem: {
     flexDirection: 'row',
@@ -566,33 +542,23 @@ const styles = StyleSheet.create({
   },
   timeline: {
     width: '100%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
+    paddingLeft: 8,
   },
   timelineItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
   },
   timelineDot: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
   },
   timelineDotActive: {
     backgroundColor: COLORS.primary,
-  },
-  timelineLine: {
-    width: 2,
-    height: 24,
-    backgroundColor: '#E5E7EB',
-    marginLeft: 17,
-    marginVertical: 4,
   },
   timelineContent: {
     flex: 1,
@@ -606,22 +572,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
+  timelineLine: {
+    width: 2,
+    height: 24,
+    backgroundColor: '#E5E7EB',
+    marginLeft: 17,
+    marginVertical: 4,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 24,
+  },
+  trustText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
   achievementCard: {
     width: '100%',
     backgroundColor: '#F0FDF4',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    marginBottom: 24,
   },
   achievementLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#166534',
+    color: '#10B981',
     marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   taskRow: {
     flexDirection: 'row',
@@ -630,47 +609,76 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   taskText: {
-    fontSize: 15,
-    color: '#166534',
     flex: 1,
+    fontSize: 15,
+    color: '#374151',
   },
-  featuresList: {
+  featuresGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     width: '100%',
-    gap: 12,
     marginBottom: 24,
   },
   featureItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#F9FAFB',
-    padding: 14,
-    borderRadius: 12,
-  },
-  featureIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
   },
   featureText: {
-    fontSize: 16,
-    color: '#374151',
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '500',
+  },
+  priceCard: {
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  priceMain: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  pricePeriod: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  priceBilled: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  fixedFooter: {
+    paddingHorizontal: 24,
+    paddingBottom: 50,
+    paddingTop: 16,
+  },
+  fixedFooterLarge: {
+    paddingHorizontal: 24,
+    paddingBottom: 50,
+    paddingTop: 16,
+    gap: 12,
   },
   primaryButton: {
     flexDirection: 'row',
     backgroundColor: COLORS.primary,
     borderRadius: 16,
     paddingVertical: 18,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    width: '100%',
-    marginTop: 'auto',
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -680,209 +688,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  secondaryButton: {
-    paddingVertical: 14,
+  footerLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  secondaryButtonText: {
+  linkText: {
     color: '#6B7280',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
+  },
+  linkDivider: {
+    color: '#D1D5DB',
+    marginHorizontal: 16,
   },
   legalText: {
     fontSize: 12,
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 18,
-    paddingBottom: 40,
-  },
-  // Urgency Banner Styles
-  urgencyBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  urgencyText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400E',
-  },
-  valueProposition: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  // Trust Badges Styles
-  trustBadges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  trustBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F0FDF4',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-  trustBadgeText: {
-    fontSize: 12,
-    color: '#166534',
-    fontWeight: '500',
-  },
-  appStoreRating: {
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 4,
-  },
-  stars: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  ratingText: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  // Loss Aversion Styles
-  lossAversionCard: {
-    width: '100%',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  lossAversionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#991B1B',
-    marginBottom: 12,
-  },
-  lossItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  lossText: {
-    fontSize: 14,
-    color: '#7F1D1D',
-    flex: 1,
-  },
-  guarantee: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  guaranteeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#166534',
-  },
-  // Compact styles for Step 3 (responsive)
-  achievementCardCompact: {
-    width: '100%',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  taskTextSmall: {
-    fontSize: 13,
-    color: '#166534',
-    flex: 1,
-  },
-  moreTasksText: {
-    fontSize: 12,
-    color: '#059669',
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  lossAversionCardCompact: {
-    width: '100%',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  lossAversionTitleSmall: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#991B1B',
-    marginBottom: 8,
-  },
-  lossItemCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  lossTextSmall: {
-    fontSize: 13,
-    color: '#7F1D1D',
-    flex: 1,
-  },
-  featuresCompact: {
-    width: '100%',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 12,
-  },
-  featureItemCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F9FAFB',
-    padding: 10,
-    borderRadius: 10,
-    minWidth: '30%',
-  },
-  featureTextSmall: {
-    fontSize: 12,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  guaranteeCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  guaranteeTextSmall: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#166534',
-  },
-  secondaryButtonCompact: {
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  legalTextCompact: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 16,
   },
 });
