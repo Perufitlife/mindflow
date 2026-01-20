@@ -2,8 +2,8 @@
 // RevenueCat Configuration for Unbind
 // 2 Plans: Monthly ($19.99) and Yearly ($99.99)
 
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // Check if running in Expo Go (no native modules)
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -13,7 +13,7 @@ const isExpoGo = Constants.appOwnership === 'expo';
 // Find them in RevenueCat Dashboard → API Keys → Public API key
 
 // TODO: Replace with your actual PUBLIC API keys from RevenueCat Dashboard
-const REVENUECAT_API_KEY_IOS = 'appl_YOUR_IOS_PUBLIC_KEY_HERE';
+const REVENUECAT_API_KEY_IOS = 'appl_mresRVQtBJQjPRPVYMTGrxliZrQ';
 const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ANDROID_PUBLIC_KEY_HERE';
 
 // Select API key based on platform
