@@ -16,7 +16,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import * as Sentry from 'sentry-expo';
+import * as Sentry from '../sentry-stub';
 import UnbindLogo from '../components/UnbindLogo';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';

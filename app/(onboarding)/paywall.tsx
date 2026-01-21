@@ -248,10 +248,14 @@ export default function OnboardingPaywall() {
     </View>
   );
 
+  // Check if yearly has free trial (only yearly should have it)
+  const yearlyHasTrial = yearlyPrice.hasFreeTrial && yearlyPrice.freeTrialDays > 0;
+  const yearlyTrialDays = yearlyPrice.freeTrialDays || TRIAL_CONFIG.durationDays;
+
   // Plan selector component
   const renderPlanSelector = () => (
     <View style={styles.planSelector}>
-      {/* Yearly Plan */}
+      {/* Yearly Plan - WITH FREE TRIAL */}
       <TouchableOpacity
         style={[
           styles.planOption,
@@ -260,11 +264,18 @@ export default function OnboardingPaywall() {
         onPress={() => setSelectedPlan('yearly')}
         activeOpacity={0.8}
       >
-        {savingsPercent > 0 && (
-          <View style={styles.savingsBadge}>
-            <Text style={styles.savingsBadgeText}>SAVE {savingsPercent}%</Text>
+        {/* Best Value + Free Trial Badge */}
+        <View style={styles.badgeRow}>
+          {savingsPercent > 0 && (
+            <View style={styles.savingsBadge}>
+              <Text style={styles.savingsBadgeText}>SAVE {savingsPercent}%</Text>
+            </View>
+          )}
+          <View style={styles.trialBadge}>
+            <Ionicons name="gift-outline" size={12} color="#FFFFFF" />
+            <Text style={styles.trialBadgeText}>{yearlyTrialDays} DAYS FREE</Text>
           </View>
-        )}
+        </View>
         <View style={styles.planHeader}>
           <View style={[
             styles.radioCircle,
@@ -288,13 +299,14 @@ export default function OnboardingPaywall() {
           </Text>
           <Text style={styles.planPeriod}>/month</Text>
         </View>
-        <Text style={styles.planBilled}>Billed as {yearlyPrice.price}/year</Text>
+        <Text style={styles.planBilled}>Billed as {yearlyPrice.price}/year after trial</Text>
       </TouchableOpacity>
 
-      {/* Monthly Plan */}
+      {/* Monthly Plan - NO FREE TRIAL */}
       <TouchableOpacity
         style={[
           styles.planOption,
+          styles.planOptionSecondary,
           selectedPlan === 'monthly' && styles.planOptionSelected,
         ]}
         onPress={() => setSelectedPlan('monthly')}
@@ -313,6 +325,7 @@ export default function OnboardingPaywall() {
           ]}>
             Monthly
           </Text>
+          <Text style={styles.noTrialText}>No free trial</Text>
         </View>
         <View style={styles.planPricing}>
           <Text style={[
@@ -323,7 +336,7 @@ export default function OnboardingPaywall() {
           </Text>
           <Text style={styles.planPeriod}>/month</Text>
         </View>
-        <Text style={styles.planBilled}>Billed monthly</Text>
+        <Text style={styles.planBilled}>Billed monthly, cancel anytime</Text>
       </TouchableOpacity>
     </View>
   );
@@ -460,7 +473,9 @@ export default function OnboardingPaywall() {
           {userName ? `Choose your plan, ${userName}` : "Choose your plan"}
         </Text>
         <Text style={styles.stepSubtitle}>
-          Start with {trialDays} days free
+          {selectedPlan === 'yearly' 
+            ? `Start with ${yearlyTrialDays} days free` 
+            : 'Get started today'}
         </Text>
         
         {/* Plan Selector */}
@@ -510,7 +525,9 @@ export default function OnboardingPaywall() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.primaryButtonText}>
-                  Start {trialDays}-day free trial
+                  {selectedPlan === 'yearly' 
+                    ? `Start ${yearlyTrialDays}-day free trial`
+                    : `Subscribe for ${monthlyPrice.price}/mo`}
                 </Text>
               )}
             </TouchableOpacity>
@@ -526,9 +543,9 @@ export default function OnboardingPaywall() {
             </View>
 
             <Text style={styles.legalText}>
-              {trialDays}-day free trial, then {selectedPlan === 'yearly' 
-                ? `${yearlyPrice.price}/year` 
-                : `${monthlyPrice.price}/month`}. Cancel anytime.
+              {selectedPlan === 'yearly' 
+                ? `${yearlyTrialDays}-day free trial, then ${yearlyPrice.price}/year. Cancel anytime.`
+                : `Billed ${monthlyPrice.price} today, then monthly. Cancel anytime.`}
             </Text>
           </>
         )}
@@ -686,10 +703,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
     backgroundColor: '#F5F3FF',
   },
-  savingsBadge: {
+  badgeRow: {
     position: 'absolute',
     top: -10,
     right: 16,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  savingsBadge: {
     backgroundColor: '#10B981',
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -699,6 +720,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
+  },
+  trialBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  trialBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  planOptionSecondary: {
+    opacity: 0.9,
+  },
+  noTrialText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginLeft: 'auto',
   },
   planHeader: {
     flexDirection: 'row',

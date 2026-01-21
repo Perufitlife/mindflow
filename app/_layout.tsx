@@ -6,7 +6,8 @@ import { supabase } from '../config/supabase';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import posthog from '../posthog';
 import { initializeRevenueCat, syncUserWithRevenueCat } from '../services/subscriptions';
-import '../sentry-init';
+// Sentry temporarily disabled for build compatibility
+// import '../sentry-init';
 
 export default function RootLayout() {
   useEffect(() => {

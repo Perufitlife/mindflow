@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withDelay, withSpring, withSequence, withTiming } from 'react-native-reanimated';
-import * as Sentry from 'sentry-expo';
+import * as Sentry from '../sentry-stub';
 import Confetti from '../components/Confetti';
 import TaskChecklist from '../components/TaskChecklist';
 import UnbindLogo from '../components/UnbindLogo';
