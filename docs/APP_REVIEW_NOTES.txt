@@ -1,0 +1,10 @@
+Copy and paste the text below into App Store Connect > Your App > App Review Information > Notes.
+
+--------------------------------------------------------------------------------
+
+- In-App Purchases: Please use Sandbox. Subscriptions are in "Unbind Premium" (Yearly with 3-day trial, Monthly without trial).
+- Restore: Available in onboarding paywall and in-app paywall. Also under Settings > Restore Purchases.
+- Microphone: Required for voice journaling. Permission is requested on first Record.
+- AI: Voice is transcribed and analyzed by AI to generate micro-tasks. Disclosed in onboarding and Privacy Policy.
+
+--------------------------------------------------------------------------------
