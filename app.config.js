@@ -9,7 +9,7 @@ export default {
     slug: "unbind",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/unbind-logo.png",
     scheme: "unbind",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -17,7 +17,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.unbindapp.unbind",
-      buildNumber: "2",
+      buildNumber: "3",
       // ASO: iOS specific metadata
       infoPlist: {
         NSMicrophoneUsageDescription: "Unbind uses your microphone to record voice journals and convert them into actionable micro-tasks.",
@@ -41,7 +41,7 @@ export default {
     
     web: {
       output: "static",
-      favicon: "./assets/images/favicon.png"
+      favicon: "./assets/images/unbind-logo.png"
     },
     
     plugins: [
@@ -49,7 +49,7 @@ export default {
       [
         "expo-splash-screen",
         {
-          image: "./assets/images/splash-icon.png",
+          image: "./assets/images/unbind-logo.png",
           imageWidth: 200,
           resizeMode: "contain",
           backgroundColor: "#ffffff",
