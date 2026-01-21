@@ -23,11 +23,9 @@ import {
   restorePurchases,
 } from '../services/subscriptions';
 import {
-  trackPaywallDismissed,
   trackPaywallShown,
   trackPaywallSubscribeClicked,
 } from '../services/analytics';
-import { markPaywallSeen } from '../services/user';
 import posthog from '../posthog';
 
 type PlanType = 'yearly' | 'monthly';
@@ -67,12 +65,6 @@ export default function PaywallScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = async () => {
-    await markPaywallSeen();
-    trackPaywallDismissed();
-    router.replace('/(tabs)');
   };
 
   const handlePurchase = async () => {
@@ -124,12 +116,7 @@ export default function PaywallScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Close button - only if not hard paywall */}
-      {!isTrialExpired && (
-        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-          <Ionicons name="close" size={24} color="#9CA3AF" />
-        </TouchableOpacity>
-      )}
+      {/* No close button - user must subscribe or use system back */}
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
@@ -249,19 +236,9 @@ export default function PaywallScreen() {
           )}
         </TouchableOpacity>
 
-        <View style={styles.footerLinks}>
-          <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
-            <Text style={styles.linkText}>Restore</Text>
-          </TouchableOpacity>
-          {!isTrialExpired && (
-            <>
-              <Text style={styles.linkDivider}>•</Text>
-              <TouchableOpacity onPress={handleClose}>
-                <Text style={styles.linkText}>{isLimitReached ? 'Back' : 'Maybe later'}</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+        <TouchableOpacity onPress={handleRestore} disabled={purchasing} style={styles.restoreButton}>
+          <Text style={styles.linkText}>Restore Purchases</Text>
+        </TouchableOpacity>
 
         <Text style={styles.legalText}>
           {isTrialExpired 
@@ -316,8 +293,7 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: COLORS.primary, borderRadius: 16, paddingVertical: 18, alignItems: 'center', marginBottom: 14 },
   buttonDisabled: { opacity: 0.7 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
-  footerLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  restoreButton: { alignItems: 'center', marginBottom: 14 },
   linkText: { color: '#6B7280', fontSize: 15, fontWeight: '500' },
-  linkDivider: { color: '#D1D5DB', marginHorizontal: 12 },
   legalText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
 });

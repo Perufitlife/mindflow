@@ -24,6 +24,7 @@ import UnbindLogo from '../../components/UnbindLogo';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { trackRecordingStarted, trackRecordingStopped } from '../../services/analytics';
+import { checkPremiumStatus } from '../../services/subscriptions';
 
 const MIN_RECORDING_SECONDS = 30;
 const SUGGESTED_RECORDING_SECONDS = 120;
@@ -164,6 +165,13 @@ export default function RecordScreen() {
 
   async function startRecording() {
     try {
+      // Check if user is premium before allowing recording
+      const isPremium = await checkPremiumStatus();
+      if (!isPremium) {
+        router.push('/paywall?trigger=not_subscribed');
+        return;
+      }
+
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
         Sentry.Native.captureMessage('Microphone permission denied', 'warning');

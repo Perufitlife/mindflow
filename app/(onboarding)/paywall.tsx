@@ -217,12 +217,6 @@ export default function OnboardingPaywall() {
     }
   };
 
-  const handleSkip = async () => {
-    PaywallEvents.dismissed(step);
-    await markOnboardingComplete();
-    router.replace('/(tabs)');
-  };
-
   // Calculate savings
   const monthlyCostIfPaidMonthly = parseFloat(monthlyPrice.price.replace('$', '')) * 12;
   const yearlyCost = parseFloat(yearlyPrice.price.replace('$', ''));
@@ -532,15 +526,9 @@ export default function OnboardingPaywall() {
               )}
             </TouchableOpacity>
 
-            <View style={styles.footerLinks}>
-              <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
-                <Text style={styles.linkText}>Restore</Text>
-              </TouchableOpacity>
-              <Text style={styles.linkDivider}>•</Text>
-              <TouchableOpacity onPress={handleSkip} disabled={purchasing}>
-                <Text style={styles.linkText}>Skip</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={handleRestore} disabled={purchasing} style={styles.restoreButton}>
+              <Text style={styles.linkText}>Restore Purchases</Text>
+            </TouchableOpacity>
 
             <Text style={styles.legalText}>
               {selectedPlan === 'yearly' 
@@ -868,17 +856,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  footerLinks: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  restoreButton: {
     alignItems: 'center',
+    paddingVertical: 12,
   },
   linkText: {
     color: '#6B7280',
     fontSize: 15,
     fontWeight: '500',
   },
-  linkDivider: {
+  _unused: {
     color: '#D1D5DB',
     marginHorizontal: 16,
   },

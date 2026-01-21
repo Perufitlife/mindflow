@@ -19,7 +19,7 @@ import ThemeSelector from '../../components/ThemeSelector';
 import { useTheme } from '../../contexts/ThemeContext';
 import { setGlobalLanguage, useTranslation } from '../../hooks/useTranslation';
 import { Language, LANGUAGES } from '../../i18n/translations';
-import { signOut, getCurrentUser } from '../../services/auth';
+// Auth imports removed - using anonymous auth
 import {
   checkPermissions,
   enableNotifications,
@@ -27,7 +27,8 @@ import {
   getNotificationSettings,
 } from '../../services/notifications';
 import { clearAllEntries } from '../../services/storage';
-import { getPreferences, resetUserState, updatePreferences } from '../../services/user';
+import { restorePurchases } from '../../services/subscriptions';
+import { getPreferences, updatePreferences } from '../../services/user';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -104,64 +105,17 @@ export default function SettingsScreen() {
     return lang ? lang.nativeName : 'English';
   };
 
-  const handleResetOnboarding = () => {
-    Alert.alert(
-      t('settings.reset_onboarding'),
-      t('settings.reset_onboarding_sub'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            await resetUserState();
-            router.replace('/(onboarding)');
-          },
-        },
-      ]
-    );
-  };
-
-  const handleClearData = () => {
-    Alert.alert(
-      t('settings.clear_data'),
-      t('settings.clear_data_sub'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            await clearAllEntries();
-            await resetUserState();
-            Alert.alert(t('common.success'), 'All data has been cleared.');
-          },
-        },
-      ]
-    );
-  };
-
-  const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'This will sign you out and create a new session. Use this to fix authentication issues.',
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              Alert.alert('Success', 'Signed out. The app will create a new session automatically.');
-            } catch (error) {
-              console.error('Sign out error:', error);
-              Alert.alert('Error', 'Failed to sign out');
-            }
-          },
-        },
-      ]
-    );
+  const handleRestorePurchases = async () => {
+    try {
+      const result = await restorePurchases();
+      if (result.isPremium) {
+        Alert.alert('Success!', 'Your subscription has been restored.');
+      } else {
+        Alert.alert('No Subscription Found', "We couldn't find an active subscription for this account.");
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+    }
   };
 
   const SettingRow = ({
@@ -296,8 +250,28 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Account */}
-        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>{t('settings.account')}</Text>
+        {/* Subscription */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Subscription</Text>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <SettingRow
+            icon="card-outline"
+            iconColor="#6366F1"
+            title="Manage Subscription"
+            subtitle="View or cancel your plan"
+            onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+          <SettingRow
+            icon="refresh-outline"
+            iconColor="#10B981"
+            title="Restore Purchases"
+            subtitle="Recover your subscription"
+            onPress={handleRestorePurchases}
+          />
+        </View>
+
+        {/* Data */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Data</Text>
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <SettingRow
             icon="download-outline"
@@ -305,30 +279,6 @@ export default function SettingsScreen() {
             title={t('settings.export')}
             subtitle={t('settings.export_sub')}
             onPress={() => Alert.alert(t('settings.coming_soon'), 'Export feature coming soon!')}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-          <SettingRow
-            icon="refresh-outline"
-            iconColor="#F59E0B"
-            title={t('settings.reset_onboarding')}
-            subtitle={t('settings.reset_onboarding_sub')}
-            onPress={handleResetOnboarding}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-          <SettingRow
-            icon="trash-outline"
-            iconColor="#EF4444"
-            title={t('settings.clear_data')}
-            subtitle={t('settings.clear_data_sub')}
-            onPress={handleClearData}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-          <SettingRow
-            icon="log-out-outline"
-            iconColor="#EF4444"
-            title="Sign Out"
-            subtitle="Fix authentication issues"
-            onPress={handleSignOut}
           />
         </View>
 
