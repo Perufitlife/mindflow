@@ -164,112 +164,58 @@ export default function RecordScreen() {
     return t('record.tap_stop');
   }
 
+  // ============================================
+  // DIAGNOSTIC VERSION - TEMPORARY
+  // This version skips premium check to isolate the crash
+  // ============================================
   async function startRecording() {
+    // STEP 0: Show we entered the function
+    console.log('[RECORD] === startRecording called ===');
+    
     try {
-      console.log('[RECORD] startRecording called, isExpoGo:', isExpoGo);
+      // STEP 1: Basic environment check
+      console.log('[RECORD] Step 1: Environment check');
+      console.log('[RECORD] isExpoGo:', isExpoGo);
+      console.log('[RECORD] __DEV__:', __DEV__);
       
-      // In Expo Go, allow recording without premium check (RevenueCat doesn't work)
-      if (!isExpoGo) {
-        console.log('[RECORD] Not Expo Go, checking premium status...');
-        // Check if user is premium before allowing recording
-        let isPremium = false;
-        let premiumCheckError: any = null;
-        
-        try {
-          // Ensure checkPremiumStatus is a function and returns a Promise
-          if (typeof checkPremiumStatus !== 'function') {
-            console.error('[RECORD] checkPremiumStatus is not a function!');
-            throw new Error('checkPremiumStatus is not available');
-          }
-          
-          // Wrap in Promise with timeout to prevent hanging
-          const premiumCheckPromise = checkPremiumStatus();
-          if (!(premiumCheckPromise instanceof Promise)) {
-            console.error('[RECORD] checkPremiumStatus did not return a Promise!');
-            throw new Error('checkPremiumStatus did not return a Promise');
-          }
-          
-          isPremium = await Promise.race([
-            premiumCheckPromise,
-            new Promise<boolean>((_, reject) => 
-              setTimeout(() => reject(new Error('Premium check timeout')), 5000)
-            )
-          ]);
-          console.log('[RECORD] Premium status:', isPremium);
-        } catch (premiumError: any) {
-          premiumCheckError = premiumError;
-          console.error('[RECORD] Error checking premium status:', premiumError);
-          console.error('[RECORD] Error type:', typeof premiumError);
-          console.error('[RECORD] Error message:', premiumError?.message);
-          console.error('[RECORD] Error stack:', premiumError?.stack);
-          // If check fails, assume not premium and show paywall
-          isPremium = false;
-        }
-        
-        if (!isPremium) {
-          console.log('[RECORD] User not premium, showing paywall...');
-          try {
-            // Verify router.push is available
-            if (!router || typeof router.push !== 'function') {
-              console.error('[RECORD] router.push is not available!');
-              Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
-              return;
-            }
-            
-            // Use setTimeout to ensure navigation happens after current execution
-            setTimeout(() => {
-              try {
-                router.push('/paywall?trigger=not_subscribed');
-              } catch (navError: any) {
-                console.error('[RECORD] Navigation error:', navError);
-                console.error('[RECORD] Nav error message:', navError?.message);
-                Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
-              }
-            }, 100);
-          } catch (navError: any) {
-            console.error('[RECORD] Navigation setup error:', navError);
-            Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
-          }
-          return;
-        }
-      } else {
-        console.log('[RECORD] Expo Go detected, skipping premium check');
-      }
-
-      console.log('[RECORD] Requesting microphone permission...');
+      // TEMPORARILY SKIP PREMIUM CHECK - FOR DEBUGGING ONLY
+      // This will help us isolate if the crash is in RevenueCat
+      console.log('[RECORD] DIAGNOSTIC MODE: Skipping premium check');
+      
+      // STEP 2: Request microphone permission
+      console.log('[RECORD] Step 2: Requesting microphone permission...');
       let permission;
       try {
-        // Verify Audio.requestPermissionsAsync is available
-        if (!Audio || typeof Audio.requestPermissionsAsync !== 'function') {
-          console.error('[RECORD] Audio.requestPermissionsAsync is not available!');
-          Alert.alert('Error', 'Audio recording is not available on this device.');
+        if (!Audio) {
+          Alert.alert('Debug Error', 'Audio module is undefined');
+          return;
+        }
+        if (typeof Audio.requestPermissionsAsync !== 'function') {
+          Alert.alert('Debug Error', 'Audio.requestPermissionsAsync is not a function');
           return;
         }
         
         permission = await Audio.requestPermissionsAsync();
+        console.log('[RECORD] Permission result:', permission?.granted);
       } catch (permError: any) {
-        console.error('[RECORD] Permission request error:', permError);
-        Alert.alert('Error', 'Failed to request microphone permission. Please try again.');
+        Alert.alert('Permission Error', `Failed: ${permError?.message || 'Unknown'}`);
         return;
       }
       
-      if (!permission.granted) {
-        console.warn('[RECORD] Microphone permission denied');
-        Sentry.Native.captureMessage('Microphone permission denied', 'warning');
+      if (!permission?.granted) {
         Alert.alert(
           'Microphone Required',
-          'Please enable microphone access in your device settings to record voice journals.',
+          'Please enable microphone access in your device settings.',
           [{ text: 'OK' }]
         );
         return;
       }
 
-      console.log('[RECORD] Setting audio mode...');
+      // STEP 3: Set audio mode
+      console.log('[RECORD] Step 3: Setting audio mode...');
       try {
-        // Verify Audio.setAudioModeAsync is available
-        if (!Audio || typeof Audio.setAudioModeAsync !== 'function') {
-          console.error('[RECORD] Audio.setAudioModeAsync is not available!');
-          Alert.alert('Error', 'Audio configuration is not available on this device.');
+        if (typeof Audio.setAudioModeAsync !== 'function') {
+          Alert.alert('Debug Error', 'Audio.setAudioModeAsync is not a function');
           return;
         }
         
@@ -277,102 +223,61 @@ export default function RecordScreen() {
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
         });
+        console.log('[RECORD] Audio mode set successfully');
       } catch (audioModeError: any) {
-        console.error('[RECORD] Audio mode error:', audioModeError);
-        Alert.alert('Error', 'Failed to configure audio. Please try again.');
+        Alert.alert('Audio Mode Error', `Failed: ${audioModeError?.message || 'Unknown'}`);
         return;
       }
 
-      console.log('[RECORD] Creating recording...');
-      let recording;
+      // STEP 4: Create recording
+      console.log('[RECORD] Step 4: Creating recording...');
+      let newRecording;
       try {
-        // Verify Audio.Recording.createAsync is available
-        if (!Audio || !Audio.Recording || typeof Audio.Recording.createAsync !== 'function') {
-          console.error('[RECORD] Audio.Recording.createAsync is not available!');
-          Alert.alert('Error', 'Audio recording is not available on this device.');
+        if (!Audio.Recording) {
+          Alert.alert('Debug Error', 'Audio.Recording is undefined');
           return;
         }
-        
-        // Verify RecordingOptionsPresets is available
-        if (!Audio.RecordingOptionsPresets || !Audio.RecordingOptionsPresets.HIGH_QUALITY) {
-          console.error('[RECORD] Audio.RecordingOptionsPresets.HIGH_QUALITY is not available!');
-          Alert.alert('Error', 'Audio recording configuration is not available.');
+        if (typeof Audio.Recording.createAsync !== 'function') {
+          Alert.alert('Debug Error', 'Audio.Recording.createAsync is not a function');
+          return;
+        }
+        if (!Audio.RecordingOptionsPresets?.HIGH_QUALITY) {
+          Alert.alert('Debug Error', 'Audio.RecordingOptionsPresets.HIGH_QUALITY is undefined');
           return;
         }
         
         const result = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
-        recording = result.recording;
+        newRecording = result.recording;
+        console.log('[RECORD] Recording created successfully');
       } catch (createError: any) {
-        console.error('[RECORD] Create recording error:', createError);
-        console.error('[RECORD] Create error message:', createError?.message);
-        console.error('[RECORD] Create error stack:', createError?.stack);
-        Alert.alert('Error', `Failed to start recording: ${createError?.message || 'Unknown error'}`);
+        Alert.alert('Create Recording Error', `Failed: ${createError?.message || 'Unknown'}`);
         return;
       }
 
-      console.log('[RECORD] Recording created, starting...');
-      setRecording(recording);
+      // STEP 5: Update state
+      console.log('[RECORD] Step 5: Updating state...');
+      setRecording(newRecording);
       setIsRecording(true);
+      console.log('[RECORD] Recording started successfully!');
       
-      // Safely track recording started
-      try {
-        if (typeof trackRecordingStarted === 'function') {
-          trackRecordingStarted();
-        }
-      } catch (trackError) {
-        console.warn('[RECORD] Failed to track recording started:', trackError);
-      }
+      // SKIP ANALYTICS - FOR DEBUGGING
+      // trackRecordingStarted() and Sentry calls are skipped
       
-      // Sentry is stubbed, safe to call
-      try {
-        Sentry.Native.captureMessage('Recording started', 'info');
-      } catch (sentryError) {
-        // Ignore Sentry errors (it's stubbed anyway)
-      }
     } catch (err: any) {
-      console.error('[RECORD] FATAL ERROR in startRecording:', err);
-      console.error('[RECORD] Error type:', typeof err);
-      console.error('[RECORD] Error message:', err?.message);
-      console.error('[RECORD] Error stack:', err?.stack);
-      console.error('[RECORD] Error name:', err?.name);
-      console.error('[RECORD] Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      // FATAL ERROR - Show everything we can
+      const errorInfo = {
+        message: err?.message || 'No message',
+        name: err?.name || 'No name',
+        stack: err?.stack?.substring(0, 300) || 'No stack',
+      };
       
-      // Send to PostHog for remote debugging (you can see this in PostHog dashboard)
-      try {
-        if (ErrorEvents && typeof ErrorEvents.captureError === 'function') {
-          ErrorEvents.captureError(err, {
-            screen: 'record',
-            action: 'startRecording',
-            additionalData: {
-              isExpoGo,
-              error_type: typeof err,
-              error_name: err?.name,
-              error_message: err?.message,
-              error_stack_preview: err?.stack?.substring(0, 500),
-            },
-          });
-        }
-      } catch (errorCaptureError) {
-        console.warn('[RECORD] Failed to capture error to analytics:', errorCaptureError);
-      }
-      
-      // Sentry is stubbed, safe to call
-      try {
-        Sentry.Native.captureException(err);
-      } catch (sentryError) {
-        // Ignore Sentry errors (it's stubbed anyway)
-      }
-      
-      // Show detailed error for debugging (only in development)
-      const errorDetails = __DEV__ 
-        ? `\n\nDebug Info:\n${err?.message || 'Unknown'}\n${err?.stack?.substring(0, 200) || ''}`
-        : '';
+      console.error('[RECORD] FATAL ERROR:', JSON.stringify(errorInfo));
       
       Alert.alert(
-        'Recording Error', 
-        `Could not start recording: ${err?.message || 'Unknown error'}. Please try again.${errorDetails}`
+        'Fatal Error',
+        `${errorInfo.name}: ${errorInfo.message}\n\nStack: ${errorInfo.stack}`
       );
     }
   }
