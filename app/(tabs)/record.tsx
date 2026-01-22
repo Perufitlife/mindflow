@@ -166,9 +166,22 @@ export default function RecordScreen() {
   async function startRecording() {
     try {
       // Check if user is premium before allowing recording
-      const isPremium = await checkPremiumStatus();
+      let isPremium = false;
+      try {
+        isPremium = await checkPremiumStatus();
+      } catch (premiumError) {
+        console.warn('Error checking premium status:', premiumError);
+        // If check fails, assume not premium and show paywall
+        isPremium = false;
+      }
+      
       if (!isPremium) {
-        router.push('/paywall?trigger=not_subscribed');
+        try {
+          router.push('/paywall?trigger=not_subscribed');
+        } catch (navError) {
+          console.error('Navigation error:', navError);
+          Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
+        }
         return;
       }
 
