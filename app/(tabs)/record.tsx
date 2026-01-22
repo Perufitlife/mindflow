@@ -23,8 +23,9 @@ import * as Sentry from '../../sentry-stub';
 import UnbindLogo from '../../components/UnbindLogo';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { trackRecordingStarted, trackRecordingStopped } from '../../services/analytics';
+import { trackRecordingStarted, trackRecordingStopped, ErrorEvents } from '../../services/analytics';
 import { checkPremiumStatus } from '../../services/subscriptions';
+import { isExpoGo } from '../../config/revenuecat';
 
 const MIN_RECORDING_SECONDS = 30;
 const SUGGESTED_RECORDING_SECONDS = 120;
@@ -165,28 +166,69 @@ export default function RecordScreen() {
 
   async function startRecording() {
     try {
-      // Check if user is premium before allowing recording
-      let isPremium = false;
-      try {
-        isPremium = await checkPremiumStatus();
-      } catch (premiumError) {
-        console.warn('Error checking premium status:', premiumError);
-        // If check fails, assume not premium and show paywall
-        isPremium = false;
-      }
+      console.log('[RECORD] startRecording called, isExpoGo:', isExpoGo);
       
-      if (!isPremium) {
+      // In Expo Go, allow recording without premium check (RevenueCat doesn't work)
+      if (!isExpoGo) {
+        console.log('[RECORD] Not Expo Go, checking premium status...');
+        // Check if user is premium before allowing recording
+        let isPremium = false;
+        let premiumCheckError: any = null;
+        
         try {
-          router.push('/paywall?trigger=not_subscribed');
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-          Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
+          // Wrap in Promise with timeout to prevent hanging
+          isPremium = await Promise.race([
+            checkPremiumStatus(),
+            new Promise<boolean>((_, reject) => 
+              setTimeout(() => reject(new Error('Premium check timeout')), 5000)
+            )
+          ]);
+          console.log('[RECORD] Premium status:', isPremium);
+        } catch (premiumError: any) {
+          premiumCheckError = premiumError;
+          console.error('[RECORD] Error checking premium status:', premiumError);
+          console.error('[RECORD] Error type:', typeof premiumError);
+          console.error('[RECORD] Error message:', premiumError?.message);
+          console.error('[RECORD] Error stack:', premiumError?.stack);
+          // If check fails, assume not premium and show paywall
+          isPremium = false;
         }
-        return;
+        
+        if (!isPremium) {
+          console.log('[RECORD] User not premium, showing paywall...');
+          try {
+            // Use setTimeout to ensure navigation happens after current execution
+            setTimeout(() => {
+              try {
+                router.push('/paywall?trigger=not_subscribed');
+              } catch (navError: any) {
+                console.error('[RECORD] Navigation error:', navError);
+                console.error('[RECORD] Nav error message:', navError?.message);
+                Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
+              }
+            }, 100);
+          } catch (navError: any) {
+            console.error('[RECORD] Navigation setup error:', navError);
+            Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
+          }
+          return;
+        }
+      } else {
+        console.log('[RECORD] Expo Go detected, skipping premium check');
       }
 
-      const permission = await Audio.requestPermissionsAsync();
+      console.log('[RECORD] Requesting microphone permission...');
+      let permission;
+      try {
+        permission = await Audio.requestPermissionsAsync();
+      } catch (permError: any) {
+        console.error('[RECORD] Permission request error:', permError);
+        Alert.alert('Error', 'Failed to request microphone permission. Please try again.');
+        return;
+      }
+      
       if (!permission.granted) {
+        console.warn('[RECORD] Microphone permission denied');
         Sentry.Native.captureMessage('Microphone permission denied', 'warning');
         Alert.alert(
           'Microphone Required',
@@ -196,22 +238,70 @@ export default function RecordScreen() {
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      console.log('[RECORD] Setting audio mode...');
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+      } catch (audioModeError: any) {
+        console.error('[RECORD] Audio mode error:', audioModeError);
+        Alert.alert('Error', 'Failed to configure audio. Please try again.');
+        return;
+      }
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      console.log('[RECORD] Creating recording...');
+      let recording;
+      try {
+        const result = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        recording = result.recording;
+      } catch (createError: any) {
+        console.error('[RECORD] Create recording error:', createError);
+        console.error('[RECORD] Create error message:', createError?.message);
+        console.error('[RECORD] Create error stack:', createError?.stack);
+        Alert.alert('Error', `Failed to start recording: ${createError?.message || 'Unknown error'}`);
+        return;
+      }
 
+      console.log('[RECORD] Recording created, starting...');
       setRecording(recording);
       setIsRecording(true);
       trackRecordingStarted();
       Sentry.Native.captureMessage('Recording started', 'info');
-    } catch (err) {
+    } catch (err: any) {
+      console.error('[RECORD] FATAL ERROR in startRecording:', err);
+      console.error('[RECORD] Error type:', typeof err);
+      console.error('[RECORD] Error message:', err?.message);
+      console.error('[RECORD] Error stack:', err?.stack);
+      console.error('[RECORD] Error name:', err?.name);
+      console.error('[RECORD] Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      
+      // Send to PostHog for remote debugging (you can see this in PostHog dashboard)
+      ErrorEvents.captureError(err, {
+        screen: 'record',
+        action: 'startRecording',
+        additionalData: {
+          isExpoGo,
+          error_type: typeof err,
+          error_name: err?.name,
+          error_message: err?.message,
+          error_stack_preview: err?.stack?.substring(0, 500),
+        },
+      });
+      
       Sentry.Native.captureException(err);
-      Alert.alert('Error', 'Could not start recording. Please try again.');
+      
+      // Show detailed error for debugging (only in development)
+      const errorDetails = __DEV__ 
+        ? `\n\nDebug Info:\n${err?.message || 'Unknown'}\n${err?.stack?.substring(0, 200) || ''}`
+        : '';
+      
+      Alert.alert(
+        'Recording Error', 
+        `Could not start recording: ${err?.message || 'Unknown error'}. Please try again.${errorDetails}`
+      );
     }
   }
 

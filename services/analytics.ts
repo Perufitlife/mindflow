@@ -614,3 +614,57 @@ export const PromptEvents = {
     posthog.capture('dynamic_prompt_interacted', { prompt });
   },
 };
+
+// ============================================
+// ERROR TRACKING
+// ============================================
+
+export const ErrorEvents = {
+  /**
+   * Capture a critical error with full context
+   * Use this for crashes or unexpected errors
+   */
+  captureError: (error: Error | any, context: {
+    screen?: string;
+    action?: string;
+    userId?: string;
+    additionalData?: Record<string, any>;
+  }) => {
+    const errorMessage = error?.message || String(error);
+    const errorStack = error?.stack || 'No stack trace';
+    const errorName = error?.name || 'UnknownError';
+    
+    posthog.capture('app_error', {
+      error_message: errorMessage,
+      error_name: errorName,
+      error_stack: errorStack.substring(0, 1000), // Limit stack trace length
+      screen: context.screen || 'unknown',
+      action: context.action || 'unknown',
+      user_id: context.userId,
+      timestamp: new Date().toISOString(),
+      ...context.additionalData,
+    });
+    
+    // Also log to console for debugging
+    console.error('[ERROR]', {
+      message: errorMessage,
+      name: errorName,
+      screen: context.screen,
+      action: context.action,
+      stack: errorStack,
+    });
+  },
+
+  /**
+   * Capture a crash (unhandled exception)
+   */
+  captureCrash: (error: Error, screen: string) => {
+    ErrorEvents.captureError(error, {
+      screen,
+      action: 'crash',
+      additionalData: {
+        is_crash: true,
+      },
+    });
+  },
+};

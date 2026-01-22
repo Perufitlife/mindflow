@@ -7,7 +7,7 @@ import Purchases, {
   PurchasesPackage,
 } from 'react-native-purchases';
 import { Platform } from 'react-native';
-import { REVENUECAT_API_KEY, ENTITLEMENT_ID, OFFERING_ID } from '../config/revenuecat';
+import { REVENUECAT_API_KEY, ENTITLEMENT_ID, OFFERING_ID, isExpoGo } from '../config/revenuecat';
 import posthog from '../posthog';
 
 let isInitialized = false;
@@ -18,6 +18,12 @@ let isInitialized = false;
  * Note: Won't work in Expo Go - needs development build for real purchases
  */
 export async function initializeRevenueCat(userId?: string): Promise<void> {
+  // Don't initialize RevenueCat in Expo Go - it doesn't support native modules
+  if (isExpoGo) {
+    console.log('RevenueCat skipped in Expo Go (native modules not available)');
+    return;
+  }
+
   if (isInitialized) {
     console.log('RevenueCat already initialized');
     return;
@@ -42,9 +48,9 @@ export async function initializeRevenueCat(userId?: string): Promise<void> {
     isInitialized = true;
     console.log('RevenueCat initialized successfully');
   } catch (error: any) {
-    // Don't crash the app if RevenueCat fails (e.g., in Expo Go)
-    console.warn('RevenueCat init failed (expected in Expo Go):', error.message);
-    // App will work without purchases in Expo Go
+    // Don't crash the app if RevenueCat fails
+    console.warn('RevenueCat init failed:', error.message);
+    // App will work without purchases
   }
 }
 
@@ -64,6 +70,11 @@ export async function setRevenueCatUserId(userId: string): Promise<void> {
  * Check if user has premium access
  */
 export async function checkPremiumStatus(): Promise<boolean> {
+  // In Expo Go, RevenueCat doesn't work - always return false
+  if (isExpoGo) {
+    return false;
+  }
+
   if (!isInitialized) {
     console.warn('RevenueCat not initialized, returning false for premium');
     return false;

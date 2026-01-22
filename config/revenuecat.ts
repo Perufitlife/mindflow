@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 // Check if running in Expo Go (no native modules)
-const isExpoGo = Constants.appOwnership === 'expo';
+export const isExpoGo = Constants.appOwnership === 'expo';
 
 // API Keys (Public - safe to include in client)
 // IMPORTANT: Use PUBLIC keys (appl_ for iOS, goog_ for Android)
