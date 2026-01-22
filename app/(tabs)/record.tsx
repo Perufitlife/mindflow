@@ -189,43 +189,59 @@ export default function RecordScreen() {
   };
 
   async function startRecording() {
-    console.log('[RECORD] === startRecording called ===');
-    
     try {
-      // STEP 1: Ensure app is in foreground
-      console.log('[RECORD] Step 1: Checking app state...');
-      const currentState = AppState.currentState;
-      console.log('[RECORD] Current app state:', currentState);
-      
-      if (currentState !== 'active') {
-        console.log('[RECORD] App not active, waiting...');
+      // STEP 1: Ensure app is in foreground (fixes iOS background audio session error)
+      if (AppState.currentState !== 'active') {
         await waitForForeground();
         // Small delay to ensure iOS has fully activated the app
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      // STEP 2: Request microphone permission
-      console.log('[RECORD] Step 2: Requesting microphone permission...');
+      // STEP 2: Check premium status (skip in Expo Go)
+      if (!isExpoGo) {
+        try {
+          const isPremium = await Promise.race([
+            checkPremiumStatus(),
+            new Promise<boolean>((_, reject) => 
+              setTimeout(() => reject(new Error('Premium check timeout')), 5000)
+            )
+          ]);
+          
+          if (!isPremium) {
+            // User not premium, show paywall
+            if (router && typeof router.push === 'function') {
+              setTimeout(() => {
+                router.push('/paywall?trigger=not_subscribed');
+              }, 100);
+            }
+            return;
+          }
+        } catch (premiumError: any) {
+          // If premium check fails, log but don't block recording (graceful degradation)
+          console.warn('[RECORD] Premium check failed, allowing recording:', premiumError?.message);
+          // In production, you might want to block here, but for now we allow it
+        }
+      }
+
+      // STEP 3: Request microphone permission
       let permission;
       try {
         permission = await Audio.requestPermissionsAsync();
-        console.log('[RECORD] Permission result:', permission?.granted);
       } catch (permError: any) {
-        Alert.alert('Permission Error', `Failed: ${permError?.message || 'Unknown'}`);
+        Alert.alert('Permission Error', 'Unable to request microphone permission. Please try again.');
         return;
       }
       
       if (!permission?.granted) {
         Alert.alert(
           'Microphone Required',
-          'Please enable microphone access in your device settings.',
+          'Please enable microphone access in your device settings to record voice journals.',
           [{ text: 'OK' }]
         );
         return;
       }
 
-      // STEP 3: Set audio mode with retry logic
-      console.log('[RECORD] Step 3: Setting audio mode...');
+      // STEP 4: Set audio mode with retry logic (handles iOS background session error)
       let audioModeSet = false;
       let retries = 3;
       
@@ -239,10 +255,8 @@ export default function RecordScreen() {
             playsInSilentModeIOS: true,
           });
           audioModeSet = true;
-          console.log('[RECORD] Audio mode set successfully');
         } catch (audioModeError: any) {
           retries--;
-          console.warn(`[RECORD] Audio mode error (retries left: ${retries}):`, audioModeError?.message);
           
           if (retries === 0) {
             // Check if it's the background error
@@ -253,7 +267,7 @@ export default function RecordScreen() {
                 [{ text: 'OK' }]
               );
             } else {
-              Alert.alert('Audio Error', `Could not configure audio: ${audioModeError?.message}`);
+              Alert.alert('Audio Error', 'Could not configure audio. Please try again.');
             }
             return;
           }
@@ -263,15 +277,13 @@ export default function RecordScreen() {
         }
       }
 
-      // STEP 4: Create recording
-      console.log('[RECORD] Step 4: Creating recording...');
+      // STEP 5: Create recording
       let newRecording;
       try {
         const result = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
         newRecording = result.recording;
-        console.log('[RECORD] Recording created successfully');
       } catch (createError: any) {
         // Check if it's the background error
         if (createError?.message?.includes('background')) {
@@ -281,22 +293,47 @@ export default function RecordScreen() {
             [{ text: 'OK' }]
           );
         } else {
-          Alert.alert('Recording Error', `Could not start recording: ${createError?.message}`);
+          Alert.alert('Recording Error', 'Could not start recording. Please try again.');
         }
         return;
       }
 
-      // STEP 5: Update state
-      console.log('[RECORD] Step 5: Updating state...');
+      // STEP 6: Update state and track event
       setRecording(newRecording);
       setIsRecording(true);
-      console.log('[RECORD] Recording started successfully!');
+      
+      // Track recording started
+      try {
+        if (typeof trackRecordingStarted === 'function') {
+          trackRecordingStarted();
+        }
+      } catch (trackError) {
+        // Don't block recording if analytics fails
+        console.warn('[RECORD] Failed to track event:', trackError);
+      }
       
     } catch (err: any) {
-      console.error('[RECORD] FATAL ERROR:', err?.message);
+      console.error('[RECORD] Error:', err?.message);
+      
+      // Send error to analytics for debugging
+      try {
+        if (ErrorEvents && typeof ErrorEvents.captureError === 'function') {
+          ErrorEvents.captureError(err, {
+            screen: 'record',
+            action: 'startRecording',
+            additionalData: {
+              isExpoGo,
+              error_message: err?.message,
+            },
+          });
+        }
+      } catch (analyticsError) {
+        // Ignore analytics errors
+      }
+      
       Alert.alert(
         'Error',
-        `Could not start recording: ${err?.message || 'Unknown error'}. Please try again.`
+        'Could not start recording. Please try again.'
       );
     }
   }
