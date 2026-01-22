@@ -1,37 +1,114 @@
 // app/_layout.tsx - Root Layout
 import { Stack } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { supabase } from '../config/supabase';
 import { ThemeProvider } from '../contexts/ThemeContext';
-import posthog from '../posthog';
-import { initializeRevenueCat, syncUserWithRevenueCat } from '../services/subscriptions';
 // Sentry temporarily disabled for build compatibility
 // import '../sentry-init';
 
+// Lazy imports to catch initialization errors
+let supabase: any = null;
+let posthog: any = null;
+let initializeRevenueCat: any = null;
+let syncUserWithRevenueCat: any = null;
+
+try {
+  supabase = require('../config/supabase').supabase;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import supabase:', e);
+}
+
+try {
+  posthog = require('../posthog').default;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import posthog:', e);
+}
+
+try {
+  const subscriptions = require('../services/subscriptions');
+  initializeRevenueCat = subscriptions.initializeRevenueCat;
+  syncUserWithRevenueCat = subscriptions.syncUserWithRevenueCat;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import subscriptions:', e);
+}
+
 export default function RootLayout() {
+  const [initError, setInitError] = useState<string | null>(null);
+
   useEffect(() => {
-    // Initialize RevenueCat
-    initializeRevenueCat();
+    let subscription: any = null;
+    
+    const initializeApp = async () => {
+      try {
+        console.log('[LAYOUT] Starting app initialization...');
+        
+        // Initialize RevenueCat (safely)
+        if (initializeRevenueCat && typeof initializeRevenueCat === 'function') {
+          try {
+            console.log('[LAYOUT] Initializing RevenueCat...');
+            await initializeRevenueCat();
+            console.log('[LAYOUT] RevenueCat initialized');
+          } catch (rcError) {
+            console.error('[LAYOUT] RevenueCat init error:', rcError);
+            // Don't crash, continue without RevenueCat
+          }
+        } else {
+          console.warn('[LAYOUT] RevenueCat not available');
+        }
 
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-
-      if (event === 'SIGNED_IN' && session?.user) {
-        posthog.identify(session.user.id, { email: session.user.email || '' });
-        // Sync user with RevenueCat
-        syncUserWithRevenueCat(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
-        posthog.reset();
+        // Listen for auth state changes (safely)
+        if (supabase && supabase.auth && typeof supabase.auth.onAuthStateChange === 'function') {
+          try {
+            console.log('[LAYOUT] Setting up auth listener...');
+            const result = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+              console.log('[LAYOUT] Auth state changed:', event);
+              
+              try {
+                if (event === 'SIGNED_IN' && session?.user) {
+                  if (posthog && typeof posthog.identify === 'function') {
+                    posthog.identify(session.user.id, { email: session.user.email || '' });
+                  }
+                  if (syncUserWithRevenueCat && typeof syncUserWithRevenueCat === 'function') {
+                    await syncUserWithRevenueCat(session.user.id);
+                  }
+                } else if (event === 'SIGNED_OUT') {
+                  if (posthog && typeof posthog.reset === 'function') {
+                    posthog.reset();
+                  }
+                }
+              } catch (authCallbackError) {
+                console.error('[LAYOUT] Auth callback error:', authCallbackError);
+              }
+            });
+            
+            subscription = result?.data?.subscription;
+            console.log('[LAYOUT] Auth listener set up');
+          } catch (authError) {
+            console.error('[LAYOUT] Auth listener setup error:', authError);
+          }
+        } else {
+          console.warn('[LAYOUT] Supabase auth not available');
+        }
+        
+        console.log('[LAYOUT] App initialization complete');
+      } catch (error: any) {
+        console.error('[LAYOUT] FATAL initialization error:', error);
+        setInitError(error?.message || 'Unknown initialization error');
       }
-    });
+    };
+    
+    initializeApp();
 
     return () => {
-      subscription.unsubscribe();
+      try {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+      } catch (e) {
+        console.error('[LAYOUT] Cleanup error:', e);
+      }
     };
   }, []);
 

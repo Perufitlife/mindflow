@@ -17,7 +17,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.unbindapp.unbind",
-      buildNumber: "6",
+      buildNumber: "7",
       // ASO: iOS specific metadata
       infoPlist: {
         NSMicrophoneUsageDescription: "Unbind uses your microphone to record voice journals and convert them into actionable micro-tasks.",
@@ -70,6 +70,15 @@ export default {
     experiments: {
       typedRoutes: true,
       reactCompiler: true
+    },
+    
+    // EAS Update configuration for OTA updates
+    updates: {
+      url: "https://u.expo.dev/e980fa42-2281-4596-91dd-9d8715b2ec4e"
+    },
+    
+    runtimeVersion: {
+      policy: "sdkVersion"
     },
     
     extra: {
