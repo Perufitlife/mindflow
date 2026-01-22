@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Alert,
+  AppState,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -164,37 +165,49 @@ export default function RecordScreen() {
     return t('record.tap_stop');
   }
 
-  // ============================================
-  // DIAGNOSTIC VERSION - TEMPORARY
-  // This version skips premium check to isolate the crash
-  // ============================================
+  // Helper function to wait for app to be in foreground
+  const waitForForeground = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (AppState.currentState === 'active') {
+        resolve();
+        return;
+      }
+      
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          subscription.remove();
+          resolve();
+        }
+      });
+      
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        subscription.remove();
+        resolve();
+      }, 3000);
+    });
+  };
+
   async function startRecording() {
-    // STEP 0: Show we entered the function
     console.log('[RECORD] === startRecording called ===');
     
     try {
-      // STEP 1: Basic environment check
-      console.log('[RECORD] Step 1: Environment check');
-      console.log('[RECORD] isExpoGo:', isExpoGo);
-      console.log('[RECORD] __DEV__:', __DEV__);
+      // STEP 1: Ensure app is in foreground
+      console.log('[RECORD] Step 1: Checking app state...');
+      const currentState = AppState.currentState;
+      console.log('[RECORD] Current app state:', currentState);
       
-      // TEMPORARILY SKIP PREMIUM CHECK - FOR DEBUGGING ONLY
-      // This will help us isolate if the crash is in RevenueCat
-      console.log('[RECORD] DIAGNOSTIC MODE: Skipping premium check');
+      if (currentState !== 'active') {
+        console.log('[RECORD] App not active, waiting...');
+        await waitForForeground();
+        // Small delay to ensure iOS has fully activated the app
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       
       // STEP 2: Request microphone permission
       console.log('[RECORD] Step 2: Requesting microphone permission...');
       let permission;
       try {
-        if (!Audio) {
-          Alert.alert('Debug Error', 'Audio module is undefined');
-          return;
-        }
-        if (typeof Audio.requestPermissionsAsync !== 'function') {
-          Alert.alert('Debug Error', 'Audio.requestPermissionsAsync is not a function');
-          return;
-        }
-        
         permission = await Audio.requestPermissionsAsync();
         console.log('[RECORD] Permission result:', permission?.granted);
       } catch (permError: any) {
@@ -211,48 +224,65 @@ export default function RecordScreen() {
         return;
       }
 
-      // STEP 3: Set audio mode
+      // STEP 3: Set audio mode with retry logic
       console.log('[RECORD] Step 3: Setting audio mode...');
-      try {
-        if (typeof Audio.setAudioModeAsync !== 'function') {
-          Alert.alert('Debug Error', 'Audio.setAudioModeAsync is not a function');
-          return;
+      let audioModeSet = false;
+      let retries = 3;
+      
+      while (!audioModeSet && retries > 0) {
+        try {
+          // Small delay before attempting to set audio mode
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          });
+          audioModeSet = true;
+          console.log('[RECORD] Audio mode set successfully');
+        } catch (audioModeError: any) {
+          retries--;
+          console.warn(`[RECORD] Audio mode error (retries left: ${retries}):`, audioModeError?.message);
+          
+          if (retries === 0) {
+            // Check if it's the background error
+            if (audioModeError?.message?.includes('background')) {
+              Alert.alert(
+                'App Not Ready',
+                'Please make sure the app is fully open and try again.',
+                [{ text: 'OK' }]
+              );
+            } else {
+              Alert.alert('Audio Error', `Could not configure audio: ${audioModeError?.message}`);
+            }
+            return;
+          }
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
-        
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-        console.log('[RECORD] Audio mode set successfully');
-      } catch (audioModeError: any) {
-        Alert.alert('Audio Mode Error', `Failed: ${audioModeError?.message || 'Unknown'}`);
-        return;
       }
 
       // STEP 4: Create recording
       console.log('[RECORD] Step 4: Creating recording...');
       let newRecording;
       try {
-        if (!Audio.Recording) {
-          Alert.alert('Debug Error', 'Audio.Recording is undefined');
-          return;
-        }
-        if (typeof Audio.Recording.createAsync !== 'function') {
-          Alert.alert('Debug Error', 'Audio.Recording.createAsync is not a function');
-          return;
-        }
-        if (!Audio.RecordingOptionsPresets?.HIGH_QUALITY) {
-          Alert.alert('Debug Error', 'Audio.RecordingOptionsPresets.HIGH_QUALITY is undefined');
-          return;
-        }
-        
         const result = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
         newRecording = result.recording;
         console.log('[RECORD] Recording created successfully');
       } catch (createError: any) {
-        Alert.alert('Create Recording Error', `Failed: ${createError?.message || 'Unknown'}`);
+        // Check if it's the background error
+        if (createError?.message?.includes('background')) {
+          Alert.alert(
+            'App Not Ready',
+            'Please make sure the app is fully open and try again.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Recording Error', `Could not start recording: ${createError?.message}`);
+        }
         return;
       }
 
@@ -262,22 +292,11 @@ export default function RecordScreen() {
       setIsRecording(true);
       console.log('[RECORD] Recording started successfully!');
       
-      // SKIP ANALYTICS - FOR DEBUGGING
-      // trackRecordingStarted() and Sentry calls are skipped
-      
     } catch (err: any) {
-      // FATAL ERROR - Show everything we can
-      const errorInfo = {
-        message: err?.message || 'No message',
-        name: err?.name || 'No name',
-        stack: err?.stack?.substring(0, 300) || 'No stack',
-      };
-      
-      console.error('[RECORD] FATAL ERROR:', JSON.stringify(errorInfo));
-      
+      console.error('[RECORD] FATAL ERROR:', err?.message);
       Alert.alert(
-        'Fatal Error',
-        `${errorInfo.name}: ${errorInfo.message}\n\nStack: ${errorInfo.stack}`
+        'Error',
+        `Could not start recording: ${err?.message || 'Unknown error'}. Please try again.`
       );
     }
   }
