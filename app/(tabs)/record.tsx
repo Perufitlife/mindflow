@@ -176,9 +176,21 @@ export default function RecordScreen() {
         let premiumCheckError: any = null;
         
         try {
+          // Ensure checkPremiumStatus is a function and returns a Promise
+          if (typeof checkPremiumStatus !== 'function') {
+            console.error('[RECORD] checkPremiumStatus is not a function!');
+            throw new Error('checkPremiumStatus is not available');
+          }
+          
           // Wrap in Promise with timeout to prevent hanging
+          const premiumCheckPromise = checkPremiumStatus();
+          if (!(premiumCheckPromise instanceof Promise)) {
+            console.error('[RECORD] checkPremiumStatus did not return a Promise!');
+            throw new Error('checkPremiumStatus did not return a Promise');
+          }
+          
           isPremium = await Promise.race([
-            checkPremiumStatus(),
+            premiumCheckPromise,
             new Promise<boolean>((_, reject) => 
               setTimeout(() => reject(new Error('Premium check timeout')), 5000)
             )
@@ -197,6 +209,13 @@ export default function RecordScreen() {
         if (!isPremium) {
           console.log('[RECORD] User not premium, showing paywall...');
           try {
+            // Verify router.push is available
+            if (!router || typeof router.push !== 'function') {
+              console.error('[RECORD] router.push is not available!');
+              Alert.alert('Error', 'Unable to open subscription screen. Please try again.');
+              return;
+            }
+            
             // Use setTimeout to ensure navigation happens after current execution
             setTimeout(() => {
               try {
@@ -220,6 +239,13 @@ export default function RecordScreen() {
       console.log('[RECORD] Requesting microphone permission...');
       let permission;
       try {
+        // Verify Audio.requestPermissionsAsync is available
+        if (!Audio || typeof Audio.requestPermissionsAsync !== 'function') {
+          console.error('[RECORD] Audio.requestPermissionsAsync is not available!');
+          Alert.alert('Error', 'Audio recording is not available on this device.');
+          return;
+        }
+        
         permission = await Audio.requestPermissionsAsync();
       } catch (permError: any) {
         console.error('[RECORD] Permission request error:', permError);
@@ -240,6 +266,13 @@ export default function RecordScreen() {
 
       console.log('[RECORD] Setting audio mode...');
       try {
+        // Verify Audio.setAudioModeAsync is available
+        if (!Audio || typeof Audio.setAudioModeAsync !== 'function') {
+          console.error('[RECORD] Audio.setAudioModeAsync is not available!');
+          Alert.alert('Error', 'Audio configuration is not available on this device.');
+          return;
+        }
+        
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
@@ -253,6 +286,20 @@ export default function RecordScreen() {
       console.log('[RECORD] Creating recording...');
       let recording;
       try {
+        // Verify Audio.Recording.createAsync is available
+        if (!Audio || !Audio.Recording || typeof Audio.Recording.createAsync !== 'function') {
+          console.error('[RECORD] Audio.Recording.createAsync is not available!');
+          Alert.alert('Error', 'Audio recording is not available on this device.');
+          return;
+        }
+        
+        // Verify RecordingOptionsPresets is available
+        if (!Audio.RecordingOptionsPresets || !Audio.RecordingOptionsPresets.HIGH_QUALITY) {
+          console.error('[RECORD] Audio.RecordingOptionsPresets.HIGH_QUALITY is not available!');
+          Alert.alert('Error', 'Audio recording configuration is not available.');
+          return;
+        }
+        
         const result = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
@@ -268,8 +315,22 @@ export default function RecordScreen() {
       console.log('[RECORD] Recording created, starting...');
       setRecording(recording);
       setIsRecording(true);
-      trackRecordingStarted();
-      Sentry.Native.captureMessage('Recording started', 'info');
+      
+      // Safely track recording started
+      try {
+        if (typeof trackRecordingStarted === 'function') {
+          trackRecordingStarted();
+        }
+      } catch (trackError) {
+        console.warn('[RECORD] Failed to track recording started:', trackError);
+      }
+      
+      // Sentry is stubbed, safe to call
+      try {
+        Sentry.Native.captureMessage('Recording started', 'info');
+      } catch (sentryError) {
+        // Ignore Sentry errors (it's stubbed anyway)
+      }
     } catch (err: any) {
       console.error('[RECORD] FATAL ERROR in startRecording:', err);
       console.error('[RECORD] Error type:', typeof err);
@@ -279,19 +340,30 @@ export default function RecordScreen() {
       console.error('[RECORD] Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
       
       // Send to PostHog for remote debugging (you can see this in PostHog dashboard)
-      ErrorEvents.captureError(err, {
-        screen: 'record',
-        action: 'startRecording',
-        additionalData: {
-          isExpoGo,
-          error_type: typeof err,
-          error_name: err?.name,
-          error_message: err?.message,
-          error_stack_preview: err?.stack?.substring(0, 500),
-        },
-      });
+      try {
+        if (ErrorEvents && typeof ErrorEvents.captureError === 'function') {
+          ErrorEvents.captureError(err, {
+            screen: 'record',
+            action: 'startRecording',
+            additionalData: {
+              isExpoGo,
+              error_type: typeof err,
+              error_name: err?.name,
+              error_message: err?.message,
+              error_stack_preview: err?.stack?.substring(0, 500),
+            },
+          });
+        }
+      } catch (errorCaptureError) {
+        console.warn('[RECORD] Failed to capture error to analytics:', errorCaptureError);
+      }
       
-      Sentry.Native.captureException(err);
+      // Sentry is stubbed, safe to call
+      try {
+        Sentry.Native.captureException(err);
+      } catch (sentryError) {
+        // Ignore Sentry errors (it's stubbed anyway)
+      }
       
       // Show detailed error for debugging (only in development)
       const errorDetails = __DEV__ 

@@ -3,6 +3,19 @@
 
 import posthog from '../posthog';
 
+// Safe wrapper for posthog.capture to prevent crashes
+function safeCapture(eventName: string, properties?: Record<string, any>) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture(eventName, properties);
+    } else {
+      console.warn(`[ANALYTICS] PostHog not available, skipping event: ${eventName}`);
+    }
+  } catch (error) {
+    console.warn(`[ANALYTICS] Failed to capture event ${eventName}:`, error);
+  }
+}
+
 // ============================================
 // ONBOARDING FUNNEL EVENTS
 // ============================================
@@ -10,7 +23,7 @@ import posthog from '../posthog';
 export const OnboardingEvents = {
   // Onboarding Start
   started: () => {
-    posthog.capture('onboarding_started', {
+    safeCapture('onboarding_started', {
       timestamp: new Date().toISOString(),
     });
   },
@@ -381,16 +394,28 @@ export const UserProperties = {
 // ============================================
 
 export function trackRecordingStarted() {
-  posthog.capture('recording_started', {
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('recording_started', {
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track recording started:', error);
+  }
 }
 
 export function trackRecordingStopped(durationSeconds: number) {
-  posthog.capture('recording_stopped', {
-    duration_seconds: durationSeconds,
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('recording_stopped', {
+        duration_seconds: durationSeconds,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track recording stopped:', error);
+  }
 }
 
 // ============================================
@@ -630,29 +655,40 @@ export const ErrorEvents = {
     userId?: string;
     additionalData?: Record<string, any>;
   }) => {
-    const errorMessage = error?.message || String(error);
-    const errorStack = error?.stack || 'No stack trace';
-    const errorName = error?.name || 'UnknownError';
-    
-    posthog.capture('app_error', {
-      error_message: errorMessage,
-      error_name: errorName,
-      error_stack: errorStack.substring(0, 1000), // Limit stack trace length
-      screen: context.screen || 'unknown',
-      action: context.action || 'unknown',
-      user_id: context.userId,
-      timestamp: new Date().toISOString(),
-      ...context.additionalData,
-    });
-    
-    // Also log to console for debugging
-    console.error('[ERROR]', {
-      message: errorMessage,
-      name: errorName,
-      screen: context.screen,
-      action: context.action,
-      stack: errorStack,
-    });
+    try {
+      const errorMessage = error?.message || String(error);
+      const errorStack = error?.stack || 'No stack trace';
+      const errorName = error?.name || 'UnknownError';
+      
+      // Safely call posthog.capture with error handling
+      if (posthog && typeof posthog.capture === 'function') {
+        posthog.capture('app_error', {
+          error_message: errorMessage,
+          error_name: errorName,
+          error_stack: errorStack.substring(0, 1000), // Limit stack trace length
+          screen: context.screen || 'unknown',
+          action: context.action || 'unknown',
+          user_id: context.userId,
+          timestamp: new Date().toISOString(),
+          ...context.additionalData,
+        });
+      } else {
+        console.warn('[ERROR] PostHog not available, skipping error capture');
+      }
+      
+      // Also log to console for debugging
+      console.error('[ERROR]', {
+        message: errorMessage,
+        name: errorName,
+        screen: context.screen,
+        action: context.action,
+        stack: errorStack,
+      });
+    } catch (captureError) {
+      // If error capture itself fails, at least log to console
+      console.error('[ERROR] Failed to capture error:', captureError);
+      console.error('[ERROR] Original error:', error);
+    }
   },
 
   /**
