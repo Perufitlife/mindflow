@@ -42,6 +42,10 @@ export default function PaywallScreen() {
     yearly: null,
   });
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
+  const [productTitles, setProductTitles] = useState<{ monthly: string; yearly: string }>({
+    monthly: 'Unbind Premium (Monthly)',
+    yearly: 'Unbind Premium (Yearly)',
+  });
 
   const isTrialExpired = trigger === 'trial_expired';
   const isLimitReached = trigger === 'daily_limit';
@@ -55,9 +59,15 @@ export default function PaywallScreen() {
     try {
       const offering = await getOfferings();
       if (offering?.availablePackages) {
-        setPackages({
-          monthly: offering.availablePackages.find(p => p.packageType === 'MONTHLY') || null,
-          yearly: offering.availablePackages.find(p => p.packageType === 'ANNUAL') || null,
+        const monthly = offering.availablePackages.find(p => p.packageType === 'MONTHLY') || null;
+        const yearly = offering.availablePackages.find(p => p.packageType === 'ANNUAL') || null;
+        
+        setPackages({ monthly, yearly });
+        
+        // Extract product titles (required by Apple)
+        setProductTitles({
+          monthly: monthly?.product?.title || 'Unbind Premium (Monthly)',
+          yearly: yearly?.product?.title || 'Unbind Premium (Yearly)',
         });
       }
     } catch (error) {
@@ -185,11 +195,12 @@ export default function PaywallScreen() {
               </View>
               <View style={styles.priceInfo}>
                 <Text style={styles.priceLabel}>Yearly</Text>
+                <Text style={styles.productTitle}>{productTitles.yearly}</Text>
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceMain}>${PLANS.PREMIUM.pricePerMonthYearly.toFixed(2)}</Text>
-                  <Text style={styles.pricePeriod}>/month</Text>
+                  <Text style={styles.priceMain}>${PLANS.PREMIUM.priceYearly}</Text>
+                  <Text style={styles.pricePeriod}>/year</Text>
                 </View>
-                <Text style={styles.priceBilled}>${PLANS.PREMIUM.priceYearly} billed annually</Text>
+                <Text style={styles.priceBilled}>Just ${PLANS.PREMIUM.pricePerMonthYearly.toFixed(2)}/month</Text>
               </View>
               <View style={styles.saveBadge}>
                 <Text style={styles.saveText}>SAVE {PLANS.PREMIUM.yearlySavingsPercent}%</Text>
@@ -210,6 +221,7 @@ export default function PaywallScreen() {
               </View>
               <View style={styles.priceInfo}>
                 <Text style={styles.priceLabel}>Monthly</Text>
+                <Text style={styles.productTitle}>{productTitles.monthly}</Text>
                 <View style={styles.priceRow}>
                   <Text style={styles.priceMain}>${PLANS.PREMIUM.priceMonthly.toFixed(2)}</Text>
                   <Text style={styles.pricePeriod}>/month</Text>
@@ -296,6 +308,7 @@ const styles = StyleSheet.create({
   priceRadio: { marginRight: 14 },
   priceInfo: { flex: 1 },
   priceLabel: { fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 2 },
+  productTitle: { fontSize: 12, color: '#6B7280', marginBottom: 4, fontStyle: 'italic' },
   priceRow: { flexDirection: 'row', alignItems: 'baseline' },
   priceMain: { fontSize: 26, fontWeight: '700', color: COLORS.primary },
   pricePeriod: { fontSize: 15, fontWeight: '500', color: '#6B7280', marginLeft: 2 },

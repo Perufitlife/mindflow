@@ -59,6 +59,7 @@ export default function OnboardingPaywall() {
     pricePerMonth: FALLBACK_PRICES.yearly.pricePerMonth,
     hasFreeTrial: true,
     freeTrialDays: TRIAL_CONFIG.durationDays,
+    productTitle: 'Unbind Premium (Yearly)', // Fallback title
   });
   
   const [monthlyPrice, setMonthlyPrice] = useState({
@@ -66,6 +67,7 @@ export default function OnboardingPaywall() {
     pricePerMonth: FALLBACK_PRICES.monthly.pricePerMonth,
     hasFreeTrial: true,
     freeTrialDays: TRIAL_CONFIG.durationDays,
+    productTitle: 'Unbind Premium (Monthly)', // Fallback title
   });
 
   useEffect(() => {
@@ -94,22 +96,28 @@ export default function OnboardingPaywall() {
         if (yearly) {
           setYearlyPackage(yearly);
           const info = getPackagePrice(yearly);
+          // Get product title from package (required by Apple)
+          const productTitle = yearly.product?.title || 'Unbind Premium (Yearly)';
           setYearlyPrice({
             price: info.price,
             pricePerMonth: info.pricePerMonth,
             hasFreeTrial: info.hasFreeTrial,
             freeTrialDays: info.freeTrialDays || TRIAL_CONFIG.durationDays,
+            productTitle,
           });
         }
         
         if (monthly) {
           setMonthlyPackage(monthly);
           const info = getPackagePrice(monthly);
+          // Get product title from package (required by Apple)
+          const productTitle = monthly.product?.title || 'Unbind Premium (Monthly)';
           setMonthlyPrice({
             price: info.price,
             pricePerMonth: info.pricePerMonth,
             hasFreeTrial: info.hasFreeTrial,
             freeTrialDays: info.freeTrialDays || TRIAL_CONFIG.durationDays,
+            productTitle,
           });
         }
       }
@@ -285,6 +293,8 @@ export default function OnboardingPaywall() {
             Yearly
           </Text>
         </View>
+        {/* Product Title (required by Apple) */}
+        <Text style={styles.productTitle}>{yearlyPrice.productTitle}</Text>
         <View style={styles.planPricing}>
           <Text style={[
             styles.planPriceLarge,
@@ -325,6 +335,8 @@ export default function OnboardingPaywall() {
           </Text>
           <Text style={styles.noTrialText}>No free trial</Text>
         </View>
+        {/* Product Title (required by Apple) */}
+        <Text style={styles.productTitle}>{monthlyPrice.productTitle}</Text>
         <View style={styles.planPricing}>
           <Text style={[
             styles.planPrice,
@@ -776,6 +788,13 @@ const styles = StyleSheet.create({
   },
   planNameSelected: {
     color: COLORS.primary,
+  },
+  productTitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginLeft: 36,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   planPricing: {
     flexDirection: 'row',
