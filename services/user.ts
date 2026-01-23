@@ -88,6 +88,13 @@ export async function markOnboardingComplete(): Promise<void> {
 }
 
 /**
+ * Reset onboarding (for testing purposes)
+ */
+export async function resetOnboarding(): Promise<void> {
+  await updateUserState({ hasCompletedOnboarding: false, hasSeenPaywall: false });
+}
+
+/**
  * Check if user has completed onboarding
  */
 export async function hasCompletedOnboarding(): Promise<boolean> {
