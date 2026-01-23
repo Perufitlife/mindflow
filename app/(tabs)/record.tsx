@@ -25,7 +25,6 @@ import UnbindLogo from '../../components/UnbindLogo';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { trackRecordingStarted, trackRecordingStopped, ErrorEvents } from '../../services/analytics';
-import { checkPremiumStatus } from '../../services/subscriptions';
 import { isExpoGo } from '../../config/revenuecat';
 
 const MIN_RECORDING_SECONDS = 30;
@@ -200,37 +199,9 @@ export default function RecordScreen() {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      // STEP 2: Check premium status (skip in Expo Go)
-      currentStep = 'step2-premium-check';
-      if (!isExpoGo) {
-        try {
-          // Verify checkPremiumStatus exists
-          if (typeof checkPremiumStatus !== 'function') {
-            throw new Error('checkPremiumStatus is not a function');
-          }
-          
-          const isPremium = await Promise.race([
-            checkPremiumStatus(),
-            new Promise<boolean>((_, reject) => 
-              setTimeout(() => reject(new Error('Premium check timeout')), 5000)
-            )
-          ]);
-          
-          if (!isPremium) {
-            // User not premium, show paywall
-            if (router && typeof router.push === 'function') {
-              setTimeout(() => {
-                router.push('/paywall?trigger=not_subscribed');
-              }, 100);
-            }
-            return;
-          }
-        } catch (premiumError: any) {
-          // If premium check fails, log but don't block recording (graceful degradation)
-          console.warn('[RECORD] Premium check failed, allowing recording:', premiumError?.message);
-          // In production, you might want to block here, but for now we allow it
-        }
-      }
+      // STEP 2: Premium check moved to output.tsx (after processing)
+      // This allows users to complete one free trial session before seeing paywall
+      // The paywall is shown in handleContinue() in output.tsx based on shouldShowPaywall()
 
       // STEP 3: Request microphone permission
       currentStep = 'step3-permission';
