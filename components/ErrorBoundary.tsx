@@ -56,32 +56,41 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Get error details
+      const errorMessage = this.state.error?.message || 'Unknown error';
+      const errorStack = this.state.error?.stack || '';
+      const componentStack = this.state.errorInfo?.componentStack || '';
+      
+      // Extract useful info from stack
+      const stackLines = errorStack.split('\n').slice(0, 5).join('\n');
+      const componentLines = componentStack.split('\n').slice(0, 5).join('\n');
+      
       return (
         <View style={styles.container}>
           <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </Text>
+          <Text style={styles.message}>{errorMessage}</Text>
           
-          {__DEV__ && this.state.error && (
-            <ScrollView style={styles.errorContainer}>
-              <Text style={styles.errorText}>
-                {this.state.error.stack || this.state.error.toString()}
-              </Text>
-              {this.state.errorInfo && (
-                <Text style={styles.errorText}>
-                  {this.state.errorInfo.componentStack}
-                </Text>
-              )}
-            </ScrollView>
-          )}
+          {/* ALWAYS show error details for debugging */}
+          <ScrollView style={styles.errorContainer}>
+            <Text style={styles.errorLabel}>Stack Trace:</Text>
+            <Text style={styles.errorText}>
+              {stackLines || 'No stack available'}
+            </Text>
+            
+            {componentLines ? (
+              <>
+                <Text style={[styles.errorLabel, { marginTop: 12 }]}>Component:</Text>
+                <Text style={styles.errorText}>{componentLines}</Text>
+              </>
+            ) : null}
+          </ScrollView>
           
           <TouchableOpacity style={styles.button} onPress={this.handleReload}>
             <Text style={styles.buttonText}>Try Again</Text>
           </TouchableOpacity>
           
           <Text style={styles.note}>
-            Error has been reported. Check PostHog dashboard for details.
+            Screenshot this error and share it for debugging.
           </Text>
         </View>
       );
@@ -120,9 +129,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'monospace',
-    color: '#EF4444',
+    color: '#374151',
+  },
+  errorLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
   },
   button: {
     backgroundColor: '#6366F1',
