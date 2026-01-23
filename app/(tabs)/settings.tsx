@@ -26,9 +26,10 @@ import {
   disableNotifications,
   getNotificationSettings,
 } from '../../services/notifications';
+import { signOut } from '../../services/auth';
 import { clearAllEntries } from '../../services/storage';
 import { restorePurchases } from '../../services/subscriptions';
-import { getPreferences, updatePreferences } from '../../services/user';
+import { getPreferences, updatePreferences, resetAllUserData } from '../../services/user';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -279,6 +280,35 @@ export default function SettingsScreen() {
             title={t('settings.export')}
             subtitle={t('settings.export_sub')}
             onPress={() => Alert.alert(t('settings.coming_soon'), 'Export feature coming soon!')}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+          <SettingRow
+            icon="refresh-outline"
+            iconColor="#EF4444"
+            title="Reset App"
+            subtitle="Clear all data and start fresh"
+            onPress={() => {
+              Alert.alert(
+                'Reset App?',
+                'This will clear all your data and log you out. You will need to go through onboarding again. This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Reset',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await resetAllUserData();
+                        await signOut();
+                        Alert.alert('Done', 'App has been reset. Please close and reopen the app.');
+                      } catch (error) {
+                        Alert.alert('Error', 'Failed to reset app. Please try again.');
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
           />
         </View>
 

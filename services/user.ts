@@ -95,6 +95,25 @@ export async function resetOnboarding(): Promise<void> {
 }
 
 /**
+ * Complete reset - clears ALL local data (for testers)
+ * This will force the user through onboarding again
+ */
+export async function resetAllUserData(): Promise<void> {
+  try {
+    // Clear all AsyncStorage keys related to this app
+    const keys = await AsyncStorage.getAllKeys();
+    const appKeys = keys.filter(key => key.startsWith('@unbind'));
+    if (appKeys.length > 0) {
+      await AsyncStorage.multiRemove(appKeys);
+    }
+    console.log('[USER] All local user data cleared');
+  } catch (error) {
+    console.error('[USER] Error clearing user data:', error);
+    throw error;
+  }
+}
+
+/**
  * Check if user has completed onboarding
  */
 export async function hasCompletedOnboarding(): Promise<boolean> {
