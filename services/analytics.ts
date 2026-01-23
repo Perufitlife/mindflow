@@ -459,6 +459,36 @@ export function trackSignIn(method: string = 'email') {
 }
 
 // ============================================
+// PAYWALL TRACKING FUNCTIONS
+// ============================================
+
+export function trackPaywallShown(trigger: string) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('paywall_shown', {
+        trigger,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track paywall shown:', error);
+  }
+}
+
+export function trackPaywallSubscribeClicked(plan: string) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('paywall_subscribe_clicked', {
+        plan,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track paywall subscribe clicked:', error);
+  }
+}
+
+// ============================================
 // FUNNEL HELPERS
 // ============================================
 
