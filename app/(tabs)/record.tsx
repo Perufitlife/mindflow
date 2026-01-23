@@ -189,8 +189,11 @@ export default function RecordScreen() {
   };
 
   async function startRecording() {
+    let currentStep = 'init';
+    
     try {
       // STEP 1: Ensure app is in foreground (fixes iOS background audio session error)
+      currentStep = 'step1-foreground';
       if (AppState.currentState !== 'active') {
         await waitForForeground();
         // Small delay to ensure iOS has fully activated the app
@@ -198,8 +201,14 @@ export default function RecordScreen() {
       }
       
       // STEP 2: Check premium status (skip in Expo Go)
+      currentStep = 'step2-premium-check';
       if (!isExpoGo) {
         try {
+          // Verify checkPremiumStatus exists
+          if (typeof checkPremiumStatus !== 'function') {
+            throw new Error('checkPremiumStatus is not a function');
+          }
+          
           const isPremium = await Promise.race([
             checkPremiumStatus(),
             new Promise<boolean>((_, reject) => 
@@ -224,11 +233,19 @@ export default function RecordScreen() {
       }
 
       // STEP 3: Request microphone permission
+      currentStep = 'step3-permission';
+      
+      // Verify Audio module exists
+      if (!Audio || typeof Audio.requestPermissionsAsync !== 'function') {
+        Alert.alert('Error', `Audio module not available. Step: ${currentStep}`);
+        return;
+      }
+      
       let permission;
       try {
         permission = await Audio.requestPermissionsAsync();
       } catch (permError: any) {
-        Alert.alert('Permission Error', 'Unable to request microphone permission. Please try again.');
+        Alert.alert('Permission Error', `Unable to request microphone permission: ${permError?.message || 'Unknown'}`);
         return;
       }
       
@@ -242,6 +259,14 @@ export default function RecordScreen() {
       }
 
       // STEP 4: Set audio mode with retry logic (handles iOS background session error)
+      currentStep = 'step4-audio-mode';
+      
+      // Verify setAudioModeAsync exists
+      if (typeof Audio.setAudioModeAsync !== 'function') {
+        Alert.alert('Error', `Audio.setAudioModeAsync not available. Step: ${currentStep}`);
+        return;
+      }
+      
       let audioModeSet = false;
       let retries = 3;
       
@@ -267,7 +292,7 @@ export default function RecordScreen() {
                 [{ text: 'OK' }]
               );
             } else {
-              Alert.alert('Audio Error', 'Could not configure audio. Please try again.');
+              Alert.alert('Audio Error', `Could not configure audio: ${audioModeError?.message || 'Unknown'}`);
             }
             return;
           }
@@ -278,6 +303,19 @@ export default function RecordScreen() {
       }
 
       // STEP 5: Create recording
+      currentStep = 'step5-create-recording';
+      
+      // Verify Recording.createAsync exists
+      if (!Audio.Recording || typeof Audio.Recording.createAsync !== 'function') {
+        Alert.alert('Error', `Audio.Recording.createAsync not available. Step: ${currentStep}`);
+        return;
+      }
+      
+      if (!Audio.RecordingOptionsPresets || !Audio.RecordingOptionsPresets.HIGH_QUALITY) {
+        Alert.alert('Error', `RecordingOptionsPresets not available. Step: ${currentStep}`);
+        return;
+      }
+      
       let newRecording;
       try {
         const result = await Audio.Recording.createAsync(
@@ -293,12 +331,13 @@ export default function RecordScreen() {
             [{ text: 'OK' }]
           );
         } else {
-          Alert.alert('Recording Error', 'Could not start recording. Please try again.');
+          Alert.alert('Recording Error', `Could not start recording: ${createError?.message || 'Unknown'}`);
         }
         return;
       }
 
       // STEP 6: Update state and track event
+      currentStep = 'step6-update-state';
       setRecording(newRecording);
       setIsRecording(true);
       
@@ -313,7 +352,7 @@ export default function RecordScreen() {
       }
       
     } catch (err: any) {
-      console.error('[RECORD] Error:', err?.message, err);
+      console.error('[RECORD] Error at', currentStep, ':', err?.message, err);
       
       // Send error to analytics for debugging
       try {
@@ -324,6 +363,7 @@ export default function RecordScreen() {
             additionalData: {
               isExpoGo,
               error_message: err?.message,
+              step: currentStep,
             },
           });
         }
@@ -331,11 +371,12 @@ export default function RecordScreen() {
         // Ignore analytics errors
       }
       
-      // Show detailed error message for debugging
+      // Show detailed error message for debugging - VISIBLE IN APP
       const errorMsg = err?.message || 'Unknown error';
+      const errorStack = err?.stack ? err.stack.substring(0, 200) : '';
       Alert.alert(
-        'Recording Error',
-        `Could not start recording: ${errorMsg.substring(0, 100)}`,
+        `Error at ${currentStep}`,
+        `${errorMsg}\n\nStack: ${errorStack}`,
         [{ text: 'OK' }]
       );
     }
