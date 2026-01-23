@@ -313,7 +313,7 @@ export default function RecordScreen() {
       }
       
     } catch (err: any) {
-      console.error('[RECORD] Error:', err?.message);
+      console.error('[RECORD] Error:', err?.message, err);
       
       // Send error to analytics for debugging
       try {
@@ -331,9 +331,12 @@ export default function RecordScreen() {
         // Ignore analytics errors
       }
       
+      // Show detailed error message for debugging
+      const errorMsg = err?.message || 'Unknown error';
       Alert.alert(
-        'Error',
-        'Could not start recording. Please try again.'
+        'Recording Error',
+        `Could not start recording: ${errorMsg.substring(0, 100)}`,
+        [{ text: 'OK' }]
       );
     }
   }

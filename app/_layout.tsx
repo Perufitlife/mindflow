@@ -43,7 +43,14 @@ export default function RootLayout() {
     
     const checkForUpdates = async () => {
       try {
-        if (!Updates.isEnabled) {
+        // Check if Updates module is properly available
+        if (!Updates || typeof Updates.checkForUpdateAsync !== 'function') {
+          console.log('[UPDATES] Updates module not available');
+          return;
+        }
+        
+        // In development, Updates.isEnabled might be false
+        if (__DEV__ || !Updates.isEnabled) {
           console.log('[UPDATES] Updates not enabled (dev mode)');
           return;
         }
@@ -51,7 +58,7 @@ export default function RootLayout() {
         console.log('[UPDATES] Checking for updates...');
         const update = await Updates.checkForUpdateAsync();
         
-        if (update.isAvailable) {
+        if (update && update.isAvailable) {
           console.log('[UPDATES] Update available, downloading...');
           await Updates.fetchUpdateAsync();
           
@@ -64,7 +71,9 @@ export default function RootLayout() {
               { 
                 text: 'Restart Now', 
                 onPress: async () => {
-                  await Updates.reloadAsync();
+                  if (typeof Updates.reloadAsync === 'function') {
+                    await Updates.reloadAsync();
+                  }
                 }
               },
             ]
