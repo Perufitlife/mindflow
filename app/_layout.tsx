@@ -1,7 +1,8 @@
 // app/_layout.tsx - Root Layout
 import { Stack } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ThemeProvider } from '../contexts/ThemeContext';
@@ -40,9 +41,49 @@ export default function RootLayout() {
   useEffect(() => {
     let subscription: any = null;
     
+    const checkForUpdates = async () => {
+      try {
+        if (!Updates.isEnabled) {
+          console.log('[UPDATES] Updates not enabled (dev mode)');
+          return;
+        }
+        
+        console.log('[UPDATES] Checking for updates...');
+        const update = await Updates.checkForUpdateAsync();
+        
+        if (update.isAvailable) {
+          console.log('[UPDATES] Update available, downloading...');
+          await Updates.fetchUpdateAsync();
+          
+          // Ask user to restart
+          Alert.alert(
+            'Update Available',
+            'A new version has been downloaded. Restart to apply changes?',
+            [
+              { text: 'Later', style: 'cancel' },
+              { 
+                text: 'Restart Now', 
+                onPress: async () => {
+                  await Updates.reloadAsync();
+                }
+              },
+            ]
+          );
+        } else {
+          console.log('[UPDATES] App is up to date');
+        }
+      } catch (error) {
+        console.log('[UPDATES] Error checking for updates:', error);
+        // Don't crash the app if updates check fails
+      }
+    };
+
     const initializeApp = async () => {
       try {
         console.log('[LAYOUT] Starting app initialization...');
+        
+        // Check for OTA updates
+        checkForUpdates();
         
         // Initialize RevenueCat (safely)
         if (initializeRevenueCat && typeof initializeRevenueCat === 'function') {
