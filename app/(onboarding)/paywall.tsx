@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -286,14 +287,17 @@ export default function OnboardingPaywall() {
         </View>
         <View style={styles.planPricing}>
           <Text style={[
-            styles.planPrice,
+            styles.planPriceLarge,
             selectedPlan === 'yearly' && styles.planPriceSelected,
           ]}>
-            {yearlyPrice.pricePerMonth}
+            {yearlyPrice.price}
           </Text>
-          <Text style={styles.planPeriod}>/month</Text>
+          <Text style={styles.planPeriodLarge}>/year</Text>
         </View>
-        <Text style={styles.planBilled}>Billed as {yearlyPrice.price}/year after trial</Text>
+        <Text style={styles.planEquivalent}>Just {yearlyPrice.pricePerMonth}/month</Text>
+        {yearlyHasTrial && (
+          <Text style={styles.planTrialNote}>{yearlyTrialDays}-day free trial, then billed annually</Text>
+        )}
       </TouchableOpacity>
 
       {/* Monthly Plan - NO FREE TRIAL */}
@@ -535,6 +539,16 @@ export default function OnboardingPaywall() {
                 ? `${yearlyTrialDays}-day free trial, then ${yearlyPrice.price}/year. Cancel anytime.`
                 : `Billed ${monthlyPrice.price} today, then monthly. Cancel anytime.`}
             </Text>
+            
+            <View style={styles.legalLinks}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://unbindapp.com/terms.html')}>
+                <Text style={styles.legalLink}>Terms of Use</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSeparator}>|</Text>
+              <TouchableOpacity onPress={() => Linking.openURL('https://unbindapp.com/privacy.html')}>
+                <Text style={styles.legalLink}>Privacy Policy</Text>
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </View>
@@ -773,6 +787,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
+  planPriceLarge: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
+  },
   planPriceSelected: {
     color: COLORS.primary,
   },
@@ -781,11 +800,29 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginLeft: 2,
   },
+  planPeriodLarge: {
+    fontSize: 18,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
   planBilled: {
     fontSize: 13,
     color: '#9CA3AF',
     marginLeft: 36,
     marginTop: 4,
+  },
+  planEquivalent: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '600',
+    marginLeft: 36,
+    marginTop: 4,
+  },
+  planTrialNote: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginLeft: 36,
+    marginTop: 2,
   },
   
   achievementCard: {
@@ -874,5 +911,21 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  legalLink: {
+    fontSize: 12,
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    fontSize: 12,
+    color: '#D1D5DB',
   },
 });

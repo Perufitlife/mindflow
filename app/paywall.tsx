@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -246,6 +247,16 @@ export default function PaywallScreen() {
             : `${TRIAL_CONFIG.durationDays}-day free trial, then ${selectedPlan === 'yearly' ? `$${PLANS.PREMIUM.priceYearly}/year` : `$${PLANS.PREMIUM.priceMonthly}/month`}. Cancel anytime.`
           }
         </Text>
+        
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => Linking.openURL('https://unbindapp.com/terms.html')}>
+            <Text style={styles.legalLink}>Terms of Use</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>|</Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://unbindapp.com/privacy.html')}>
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -296,4 +307,7 @@ const styles = StyleSheet.create({
   restoreButton: { alignItems: 'center', marginBottom: 14 },
   linkText: { color: '#6B7280', fontSize: 15, fontWeight: '500' },
   legalText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
+  legalLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, gap: 8 },
+  legalLink: { fontSize: 12, color: COLORS.primary, textDecorationLine: 'underline' },
+  legalSeparator: { fontSize: 12, color: '#D1D5DB' },
 });
