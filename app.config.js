@@ -17,7 +17,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.unbindapp.unbind",
-      buildNumber: "8",
+      buildNumber: "9",
       // ASO: iOS specific metadata
       infoPlist: {
         NSMicrophoneUsageDescription: "Unbind uses your microphone to record voice journals and convert them into actionable micro-tasks.",

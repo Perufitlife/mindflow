@@ -1,8 +1,10 @@
 // app/paywall.tsx - In-App Paywall (trial expired or daily limit)
-// 2 Plans: Monthly & Yearly with attractive presentation
+// 2 Plans: Monthly & Yearly with aspirational CTAs
 
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +20,7 @@ import { PurchasesPackage } from 'react-native-purchases';
 import { COLORS } from '../constants/brand';
 import { TRIAL_CONFIG } from '../config/revenuecat';
 import { PLANS } from '../config/plans';
+import { getChallengeCopy } from '../config/challenge-copy';
 import {
   getOfferings,
   purchasePackage,
@@ -26,6 +29,7 @@ import {
 import {
   trackPaywallShown,
   trackPaywallSubscribeClicked,
+  trackPaywallChallengeShown,
 } from '../services/analytics';
 import posthog from '../posthog';
 
@@ -37,6 +41,7 @@ export default function PaywallScreen() {
 
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
+  const [userChallenge, setUserChallenge] = useState<string | null>(null);
   const [packages, setPackages] = useState<{ monthly: PurchasesPackage | null; yearly: PurchasesPackage | null }>({
     monthly: null,
     yearly: null,
@@ -49,11 +54,27 @@ export default function PaywallScreen() {
 
   const isTrialExpired = trigger === 'trial_expired';
   const isLimitReached = trigger === 'daily_limit';
+  
+  // Get personalized copy based on challenge
+  const challengeCopy = getChallengeCopy(userChallenge);
 
   useEffect(() => {
     trackPaywallShown(trigger || 'manual');
+    loadUserChallenge();
     loadOfferings();
   }, []);
+  
+  const loadUserChallenge = async () => {
+    try {
+      const challenge = await AsyncStorage.getItem('@user_challenge');
+      if (challenge) {
+        setUserChallenge(challenge);
+        trackPaywallChallengeShown(challenge);
+      }
+    } catch (e) {
+      console.error('Error loading challenge:', e);
+    }
+  };
 
   const loadOfferings = async () => {
     try {
@@ -239,18 +260,34 @@ export default function PaywallScreen() {
           style={[styles.primaryButton, purchasing && styles.buttonDisabled]}
           onPress={handlePurchase}
           disabled={purchasing}
+          activeOpacity={0.85}
         >
-          {purchasing ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryButtonText}>
-              {isTrialExpired ? 'Subscribe Now' : `Start ${TRIAL_CONFIG.durationDays}-day free trial`}
-            </Text>
-          )}
+          <LinearGradient
+            colors={[COLORS.primary, '#8B5CF6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientButton}
+          >
+            {purchasing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.primaryButtonText}>
+                  {isTrialExpired 
+                    ? 'Become Consistent' 
+                    : isLimitReached
+                      ? 'Continue Your Journey'
+                      : challengeCopy.cta
+                  }
+                </Text>
+                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+              </>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleRestore} disabled={purchasing} style={styles.restoreButton}>
-          <Text style={styles.linkText}>Restore Purchases</Text>
+          <Text style={styles.linkText}>Already unlocked? Restore</Text>
         </TouchableOpacity>
 
         <Text style={styles.legalText}>
@@ -314,11 +351,12 @@ const styles = StyleSheet.create({
   pricePeriod: { fontSize: 15, fontWeight: '500', color: '#6B7280', marginLeft: 2 },
   priceBilled: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   footer: { padding: 24, paddingBottom: 44, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  primaryButton: { backgroundColor: COLORS.primary, borderRadius: 16, paddingVertical: 18, alignItems: 'center', marginBottom: 14 },
+  primaryButton: { borderRadius: 16, overflow: 'hidden', marginBottom: 14 },
+  gradientButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18, paddingHorizontal: 24 },
   buttonDisabled: { opacity: 0.7 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   restoreButton: { alignItems: 'center', marginBottom: 14 },
-  linkText: { color: '#6B7280', fontSize: 15, fontWeight: '500' },
+  linkText: { color: '#6B7280', fontSize: 14, fontWeight: '500' },
   legalText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
   legalLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, gap: 8 },
   legalLink: { fontSize: 12, color: COLORS.primary, textDecorationLine: 'underline' },

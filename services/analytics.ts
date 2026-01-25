@@ -441,6 +441,63 @@ export function trackTaskRemoved() {
 }
 
 // ============================================
+// OUTPUT PREVIEW EVENTS
+// ============================================
+
+export function trackOutputPreviewShown(taskCount: number, challenge: string) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('output_preview_shown', {
+        task_count: taskCount,
+        challenge,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track output preview shown:', error);
+  }
+}
+
+export function trackBlurTapped(section: string) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('blur_tapped', {
+        section, // 'summary', 'insight', 'tasks', 'blocker'
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track blur tapped:', error);
+  }
+}
+
+export function trackUnlockCTATapped(challenge: string) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('unlock_cta_tapped', {
+        challenge,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track unlock CTA tapped:', error);
+  }
+}
+
+export function trackPaywallChallengeShown(challenge: string) {
+  try {
+    if (posthog && typeof posthog.capture === 'function') {
+      posthog.capture('paywall_challenge_shown', {
+        challenge,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track paywall challenge shown:', error);
+  }
+}
+
+// ============================================
 // AUTH EVENTS
 // ============================================
 

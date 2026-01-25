@@ -1,9 +1,10 @@
-// app/(onboarding)/paywall.tsx - Onboarding Paywall with RevenueCat
-// Connects to RevenueCat for real subscriptions with free trial
+// app/(onboarding)/paywall.tsx - Simplified Onboarding Paywall
+// Single-step paywall with personalization based on user challenge
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,15 +17,12 @@ import {
   View,
 } from 'react-native';
 import { PurchasesPackage } from 'react-native-purchases';
-import Animated, {
-  FadeIn,
-  SlideInRight,
-  SlideOutLeft,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { COLORS } from '../../constants/brand';
 import { TRIAL_CONFIG, FALLBACK_PRICES } from '../../config/revenuecat';
+import { getChallengeCopy, ChallengeType } from '../../config/challenge-copy';
 import { markOnboardingComplete } from '../../services/user';
-import { PaywallEvents, OnboardingEvents, UserProperties } from '../../services/analytics';
+import { PaywallEvents, OnboardingEvents, UserProperties, trackPaywallChallengeShown } from '../../services/analytics';
 import {
   getOfferings,
   purchasePackage,
@@ -32,7 +30,6 @@ import {
   getPackagePrice,
 } from '../../services/subscriptions';
 
-type PaywallStep = 1 | 2 | 3;
 type PlanType = 'yearly' | 'monthly';
 
 export default function OnboardingPaywall() {
@@ -41,48 +38,55 @@ export default function OnboardingPaywall() {
     transcript?: string;
     tasks?: string;
     mood?: string;
+    taskCount?: string;
   }>();
   
-  const [step, setStep] = useState<PaywallStep>(1);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userChallenge, setUserChallenge] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
   
   // Packages from RevenueCat
   const [yearlyPackage, setYearlyPackage] = useState<PurchasesPackage | null>(null);
   const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
   
-  // Price info for both plans
+  // Price info
   const [yearlyPrice, setYearlyPrice] = useState({
     price: FALLBACK_PRICES.yearly.price,
     pricePerMonth: FALLBACK_PRICES.yearly.pricePerMonth,
     hasFreeTrial: true,
     freeTrialDays: TRIAL_CONFIG.durationDays,
-    productTitle: 'Unbind Premium (Yearly)', // Fallback title
+    productTitle: 'Unbind Premium (Yearly)',
   });
   
   const [monthlyPrice, setMonthlyPrice] = useState({
     price: FALLBACK_PRICES.monthly.price,
     pricePerMonth: FALLBACK_PRICES.monthly.pricePerMonth,
-    hasFreeTrial: true,
-    freeTrialDays: TRIAL_CONFIG.durationDays,
-    productTitle: 'Unbind Premium (Monthly)', // Fallback title
+    hasFreeTrial: false,
+    freeTrialDays: 0,
+    productTitle: 'Unbind Premium (Monthly)',
   });
 
   useEffect(() => {
     PaywallEvents.shown('onboarding');
-    PaywallEvents.stepViewed(1);
-    loadUserName();
+    loadUserData();
     loadOfferings();
   }, []);
 
-  async function loadUserName() {
+  async function loadUserData() {
     try {
-      const name = await AsyncStorage.getItem('@user_name');
+      const [name, challenge] = await Promise.all([
+        AsyncStorage.getItem('@user_name'),
+        AsyncStorage.getItem('@user_challenge'),
+      ]);
       if (name) setUserName(name);
+      if (challenge) {
+        setUserChallenge(challenge);
+        trackPaywallChallengeShown(challenge);
+      }
     } catch (e) {
-      console.error('Error loading user name:', e);
+      console.error('Error loading user data:', e);
     }
   }
 
@@ -96,7 +100,6 @@ export default function OnboardingPaywall() {
         if (yearly) {
           setYearlyPackage(yearly);
           const info = getPackagePrice(yearly);
-          // Get product title from package (required by Apple)
           const productTitle = yearly.product?.title || 'Unbind Premium (Yearly)';
           setYearlyPrice({
             price: info.price,
@@ -110,61 +113,31 @@ export default function OnboardingPaywall() {
         if (monthly) {
           setMonthlyPackage(monthly);
           const info = getPackagePrice(monthly);
-          // Get product title from package (required by Apple)
           const productTitle = monthly.product?.title || 'Unbind Premium (Monthly)';
           setMonthlyPrice({
             price: info.price,
             pricePerMonth: info.pricePerMonth,
-            hasFreeTrial: info.hasFreeTrial,
-            freeTrialDays: info.freeTrialDays || TRIAL_CONFIG.durationDays,
+            hasFreeTrial: false,
+            freeTrialDays: 0,
             productTitle,
           });
         }
       }
     } catch (error) {
       console.warn('Failed to load offerings:', error);
-      // Will use fallback prices
     } finally {
       setLoading(false);
     }
   }
 
-  // Parse tasks for display
-  let parsedTasks: { title: string }[] = [];
-  try {
-    if (params.tasks) {
-      parsedTasks = JSON.parse(params.tasks).slice(0, 3);
-    }
-  } catch (e) {
-    console.error('Error parsing tasks:', e);
-  }
-
-  const handleNext = () => {
-    if (step < 3) {
-      const nextStep = (step + 1) as PaywallStep;
-      PaywallEvents.stepViewed(nextStep);
-      setStep(nextStep);
-    }
-  };
-
   const handleStartTrial = async () => {
-    // Select package based on user choice
     const pkg = selectedPlan === 'yearly' ? yearlyPackage : monthlyPackage;
     
     if (!pkg) {
-      // RevenueCat not available (Expo Go) - skip to app
       Alert.alert(
         'Purchases Unavailable',
-        'In-app purchases are not available in Expo Go. Please use a development build to test purchases.',
-        [
-          {
-            text: 'Continue Anyway',
-            onPress: async () => {
-              await markOnboardingComplete();
-              router.replace('/(tabs)');
-            },
-          },
-        ]
+        'In-app purchases are not available in Expo Go. Please use a development build.',
+        [{ text: 'Continue Anyway', onPress: () => completeOnboarding() }]
       );
       return;
     }
@@ -173,33 +146,29 @@ export default function OnboardingPaywall() {
     
     try {
       PaywallEvents.trialStarted();
-      
       const result = await purchasePackage(pkg);
       
       if (result.success) {
-        // Purchase successful!
         OnboardingEvents.completed(0);
         UserProperties.setSubscriptionStatus('trial');
         UserProperties.setOnboardingCompleted(true);
         
         await markOnboardingComplete();
         
-        const trialDays = selectedPlan === 'yearly' ? yearlyPrice.freeTrialDays : monthlyPrice.freeTrialDays;
+        const trialDays = selectedPlan === 'yearly' ? yearlyPrice.freeTrialDays : 0;
+        const message = trialDays > 0 
+          ? `Your ${trialDays}-day free trial has started. Let's beat procrastination!`
+          : "You now have full access. Let's beat procrastination!";
         
-        Alert.alert(
-          'Welcome to Unbind! 🎉',
-          `Your ${trialDays}-day free trial has started. Let's beat procrastination!`,
-          [{ text: "Let's go!", onPress: () => router.replace('/(tabs)') }]
-        );
+        Alert.alert('Welcome to Unbind!', message, [
+          { text: "Let's go!", onPress: () => router.replace('/(tabs)') }
+        ]);
       } else if (result.error === 'cancelled') {
-        // User cancelled - do nothing
         console.log('User cancelled purchase');
       } else {
-        // Other error
-        Alert.alert('Error', result.error || 'Something went wrong. Please try again.');
+        Alert.alert('Purchase Failed', result.error || 'Please try again.');
       }
     } catch (error: any) {
-      console.error('Purchase error:', error);
       Alert.alert('Error', error.message || 'Something went wrong.');
     } finally {
       setPurchasing(false);
@@ -217,7 +186,7 @@ export default function OnboardingPaywall() {
           { text: 'Continue', onPress: () => router.replace('/(tabs)') },
         ]);
       } else {
-        Alert.alert('No Subscription Found', "We couldn't find an active subscription for this account.");
+        Alert.alert('No Subscription Found', "We couldn't find an active subscription.");
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to restore purchases.');
@@ -226,330 +195,171 @@ export default function OnboardingPaywall() {
     }
   };
 
+  const completeOnboarding = async () => {
+    await markOnboardingComplete();
+    router.replace('/(tabs)');
+  };
+
+  // Get personalized copy
+  const challengeCopy = getChallengeCopy(userChallenge);
+  const taskCount = parseInt(params.taskCount || '0', 10) || 0;
+  const trialDays = yearlyPrice.freeTrialDays;
+
   // Calculate savings
-  const monthlyCostIfPaidMonthly = parseFloat(monthlyPrice.price.replace('$', '')) * 12;
+  const monthlyAnnual = parseFloat(monthlyPrice.price.replace('$', '')) * 12;
   const yearlyCost = parseFloat(yearlyPrice.price.replace('$', ''));
-  const savingsPercent = Math.round(((monthlyCostIfPaidMonthly - yearlyCost) / monthlyCostIfPaidMonthly) * 100);
+  const savingsPercent = Math.round(((monthlyAnnual - yearlyCost) / monthlyAnnual) * 100);
 
-  // Current selected price info
-  const currentPrice = selectedPlan === 'yearly' ? yearlyPrice : monthlyPrice;
-  const trialDays = currentPrice.freeTrialDays;
-
-  // Step indicators
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      {[1, 2, 3].map((s) => (
-        <View
-          key={s}
-          style={[
-            styles.stepDot,
-            s === step && styles.stepDotActive,
-            s < step && styles.stepDotComplete,
-          ]}
-        />
-      ))}
-    </View>
-  );
-
-  // Check if yearly has free trial (only yearly should have it)
-  const yearlyHasTrial = yearlyPrice.hasFreeTrial && yearlyPrice.freeTrialDays > 0;
-  const yearlyTrialDays = yearlyPrice.freeTrialDays || TRIAL_CONFIG.durationDays;
-
-  // Plan selector component
-  const renderPlanSelector = () => (
-    <View style={styles.planSelector}>
-      {/* Yearly Plan - WITH FREE TRIAL */}
-      <TouchableOpacity
-        style={[
-          styles.planOption,
-          selectedPlan === 'yearly' && styles.planOptionSelected,
-        ]}
-        onPress={() => setSelectedPlan('yearly')}
-        activeOpacity={0.8}
+  return (
+    <View style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Best Value + Free Trial Badge */}
-        <View style={styles.badgeRow}>
-          {savingsPercent > 0 && (
-            <View style={styles.savingsBadge}>
-              <Text style={styles.savingsBadgeText}>SAVE {savingsPercent}%</Text>
+        {/* Personalized Header */}
+        <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="sparkles" size={32} color={COLORS.primary} />
+          </View>
+          <Text style={styles.title}>{challengeCopy.paywall_title}</Text>
+          <Text style={styles.subtitle}>{challengeCopy.paywall_subtitle}</Text>
+        </Animated.View>
+
+        {/* Social Proof - Task Achievement */}
+        {taskCount > 0 && (
+          <Animated.View entering={FadeIn.delay(200).duration(500)} style={styles.socialProof}>
+            <Text style={styles.socialProofText}>
+              In just 2 minutes, you created {taskCount} actionable tasks
+            </Text>
+            <View style={styles.socialProofRow}>
+              <Ionicons name="people" size={16} color="#6B7280" />
+              <Text style={styles.socialProofSubtext}>
+                Join 10,000+ people {challengeCopy.benefit.toLowerCase()}
+              </Text>
             </View>
-          )}
-          <View style={styles.trialBadge}>
-            <Ionicons name="gift-outline" size={12} color="#FFFFFF" />
-            <Text style={styles.trialBadgeText}>{yearlyTrialDays} DAYS FREE</Text>
-          </View>
-        </View>
-        <View style={styles.planHeader}>
-          <View style={[
-            styles.radioCircle,
-            selectedPlan === 'yearly' && styles.radioCircleSelected,
-          ]}>
-            {selectedPlan === 'yearly' && <View style={styles.radioInner} />}
-          </View>
-          <Text style={[
-            styles.planName,
-            selectedPlan === 'yearly' && styles.planNameSelected,
-          ]}>
-            Yearly
-          </Text>
-        </View>
-        {/* Product Title (required by Apple) */}
-        <Text style={styles.productTitle}>{yearlyPrice.productTitle}</Text>
-        <View style={styles.planPricing}>
-          <Text style={[
-            styles.planPriceLarge,
-            selectedPlan === 'yearly' && styles.planPriceSelected,
-          ]}>
-            {yearlyPrice.price}
-          </Text>
-          <Text style={styles.planPeriodLarge}>/year</Text>
-        </View>
-        <Text style={styles.planEquivalent}>Just {yearlyPrice.pricePerMonth}/month</Text>
-        {yearlyHasTrial && (
-          <Text style={styles.planTrialNote}>{yearlyTrialDays}-day free trial, then billed annually</Text>
+          </Animated.View>
         )}
-      </TouchableOpacity>
 
-      {/* Monthly Plan - NO FREE TRIAL */}
-      <TouchableOpacity
-        style={[
-          styles.planOption,
-          styles.planOptionSecondary,
-          selectedPlan === 'monthly' && styles.planOptionSelected,
-        ]}
-        onPress={() => setSelectedPlan('monthly')}
-        activeOpacity={0.8}
-      >
-        <View style={styles.planHeader}>
-          <View style={[
-            styles.radioCircle,
-            selectedPlan === 'monthly' && styles.radioCircleSelected,
-          ]}>
-            {selectedPlan === 'monthly' && <View style={styles.radioInner} />}
-          </View>
-          <Text style={[
-            styles.planName,
-            selectedPlan === 'monthly' && styles.planNameSelected,
-          ]}>
-            Monthly
-          </Text>
-          <Text style={styles.noTrialText}>No free trial</Text>
-        </View>
-        {/* Product Title (required by Apple) */}
-        <Text style={styles.productTitle}>{monthlyPrice.productTitle}</Text>
-        <View style={styles.planPricing}>
-          <Text style={[
-            styles.planPrice,
-            selectedPlan === 'monthly' && styles.planPriceSelected,
-          ]}>
-            {monthlyPrice.price}
-          </Text>
-          <Text style={styles.planPeriod}>/month</Text>
-        </View>
-        <Text style={styles.planBilled}>Billed monthly, cancel anytime</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  // STEP 1: Trial Intro
-  const renderStep1 = () => (
-    <Animated.View
-      entering={FadeIn.duration(400)}
-      exiting={SlideOutLeft.duration(300)}
-      style={styles.stepWrapper}
-    >
-      <ScrollView 
-        style={styles.stepScrollView}
-        contentContainerStyle={styles.stepScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.iconCircle}>
-          <Ionicons name="gift-outline" size={48} color={COLORS.primary} />
-        </View>
-        
-        <Text style={styles.stepTitle}>Try Unbind free</Text>
-        <Text style={styles.stepSubtitle}>
-          {trialDays} days free, then {currentPrice.pricePerMonth}/month
-        </Text>
-        
-        <View style={styles.benefitsList}>
-          <View style={styles.benefitItem}>
-            <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>{trialDays} days completely free</Text>
-          </View>
-          <View style={styles.benefitItem}>
-            <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>Unlimited AI sessions</Text>
-          </View>
-          <View style={styles.benefitItem}>
-            <Ionicons name="checkmark-circle" size={22} color="#10B981" />
-            <Text style={styles.benefitText}>Cancel anytime</Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      <View style={styles.fixedFooter}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
-          <Text style={styles.primaryButtonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-
-  // STEP 2: How it works
-  const renderStep2 = () => (
-    <Animated.View
-      entering={SlideInRight.duration(400)}
-      exiting={SlideOutLeft.duration(300)}
-      style={styles.stepWrapper}
-    >
-      <ScrollView 
-        style={styles.stepScrollView}
-        contentContainerStyle={styles.stepScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-          <Ionicons name="notifications-outline" size={48} color="#F59E0B" />
-        </View>
-        
-        <Text style={styles.stepTitle}>No surprises</Text>
-        <Text style={styles.stepSubtitle}>We'll remind you before your trial ends</Text>
-        
-        <View style={styles.timeline}>
-          <View style={styles.timelineItem}>
-            <View style={[styles.timelineDot, styles.timelineDotActive]}>
-              <Ionicons name="play" size={14} color="#FFFFFF" />
-            </View>
-            <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Today</Text>
-              <Text style={styles.timelineText}>Start your free trial</Text>
-            </View>
-          </View>
-
-          <View style={styles.timelineLine} />
-
-          <View style={styles.timelineItem}>
-            <View style={styles.timelineDot}>
-              <Ionicons name="notifications" size={14} color="#F59E0B" />
-            </View>
-            <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Day {trialDays - 1}</Text>
-              <Text style={styles.timelineText}>Reminder notification</Text>
-            </View>
-          </View>
-
-          <View style={styles.timelineLine} />
-
-          <View style={styles.timelineItem}>
-            <View style={styles.timelineDot}>
-              <Ionicons name="card" size={14} color={COLORS.primary} />
-            </View>
-            <View style={styles.timelineContent}>
-              <Text style={styles.timelineDay}>Day {trialDays}</Text>
-              <Text style={styles.timelineText}>First payment (if you stay)</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Trust */}
-        <View style={styles.trustRow}>
-          <Ionicons name="shield-checkmark" size={18} color="#10B981" />
-          <Text style={styles.trustText}>Cancel anytime in Settings</Text>
-        </View>
-      </ScrollView>
-
-      <View style={styles.fixedFooter}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
-          <Text style={styles.primaryButtonText}>Got it</Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-
-  // STEP 3: Plan Selection + CTA
-  const renderStep3 = () => (
-    <Animated.View
-      entering={SlideInRight.duration(400)}
-      style={styles.stepWrapper}
-    >
-      <ScrollView 
-        style={styles.stepScrollView}
-        contentContainerStyle={styles.stepScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.stepTitle}>
-          {userName ? `Choose your plan, ${userName}` : "Choose your plan"}
-        </Text>
-        <Text style={styles.stepSubtitle}>
-          {selectedPlan === 'yearly' 
-            ? `Start with ${yearlyTrialDays} days free` 
-            : 'Get started today'}
-        </Text>
-        
-        {/* Plan Selector */}
-        {renderPlanSelector()}
-
-        {/* What they created */}
-        {parsedTasks.length > 0 && (
-          <View style={styles.achievementCard}>
-            <Text style={styles.achievementLabel}>Your first micro-tasks:</Text>
-            {parsedTasks.slice(0, 2).map((task, index) => (
-              <View key={index} style={styles.taskRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
+        {/* Yearly Plan - Primary (with trial) */}
+        <Animated.View entering={FadeIn.delay(300).duration(500)}>
+          <TouchableOpacity
+            style={[styles.planCard, selectedPlan === 'yearly' && styles.planCardSelected]}
+            onPress={() => setSelectedPlan('yearly')}
+            activeOpacity={0.8}
+          >
+            {/* Badges */}
+            <View style={styles.badgeRow}>
+              <View style={styles.bestValueBadge}>
+                <Text style={styles.badgeText}>BEST VALUE</Text>
               </View>
-            ))}
-          </View>
-        )}
+              {trialDays > 0 && (
+                <View style={styles.trialBadge}>
+                  <Ionicons name="gift" size={12} color="#FFFFFF" />
+                  <Text style={styles.trialBadgeText}>{trialDays} DAYS FREE</Text>
+                </View>
+              )}
+              {savingsPercent > 0 && (
+                <View style={styles.savingsBadge}>
+                  <Text style={styles.savingsBadgeText}>SAVE {savingsPercent}%</Text>
+                </View>
+              )}
+            </View>
 
-        {/* Features */}
-        <View style={styles.featuresGrid}>
-          <View style={styles.featureItem}>
-            <Ionicons name="infinite" size={24} color={COLORS.primary} />
-            <Text style={styles.featureText}>Unlimited</Text>
+            {/* Radio + Label */}
+            <View style={styles.planHeader}>
+              <View style={[styles.radioCircle, selectedPlan === 'yearly' && styles.radioCircleSelected]}>
+                {selectedPlan === 'yearly' && <View style={styles.radioInner} />}
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={styles.planName}>Yearly</Text>
+                <Text style={styles.productTitle}>{yearlyPrice.productTitle}</Text>
+              </View>
+            </View>
+
+            {/* Price - Billed amount prominent */}
+            <View style={styles.priceSection}>
+              <Text style={styles.priceLarge}>{yearlyPrice.price}</Text>
+              <Text style={styles.pricePeriod}>/year</Text>
+            </View>
+            <Text style={styles.priceSubtext}>Just {yearlyPrice.pricePerMonth}/month</Text>
+            
+            {trialDays > 0 && (
+              <Text style={styles.trialNote}>
+                {trialDays}-day free trial, then billed annually
+              </Text>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Monthly Plan - Secondary */}
+        <Animated.View entering={FadeIn.delay(400).duration(500)}>
+          <TouchableOpacity
+            style={[styles.monthlyOption, selectedPlan === 'monthly' && styles.monthlyOptionSelected]}
+            onPress={() => setSelectedPlan('monthly')}
+          >
+            <View style={[styles.radioCircle, selectedPlan === 'monthly' && styles.radioCircleSelected]}>
+              {selectedPlan === 'monthly' && <View style={styles.radioInner} />}
+            </View>
+            <Text style={styles.monthlyText}>
+              Or pay {monthlyPrice.price}/month (no free trial)
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Trust Indicators */}
+        <Animated.View entering={FadeIn.delay(500).duration(500)} style={styles.trustSection}>
+          <View style={styles.trustItem}>
+            <Ionicons name="shield-checkmark" size={18} color="#10B981" />
+            <Text style={styles.trustText}>Cancel anytime</Text>
           </View>
-          <View style={styles.featureItem}>
-            <Ionicons name="flash" size={24} color={COLORS.primary} />
-            <Text style={styles.featureText}>AI Tasks</Text>
+          <View style={styles.trustItem}>
+            <Ionicons name="notifications" size={18} color="#F59E0B" />
+            <Text style={styles.trustText}>Reminder before trial ends</Text>
           </View>
-          <View style={styles.featureItem}>
-            <Ionicons name="trending-up" size={24} color={COLORS.primary} />
-            <Text style={styles.featureText}>Progress</Text>
-          </View>
-        </View>
+        </Animated.View>
       </ScrollView>
 
-      <View style={styles.fixedFooterLarge}>
+      {/* Footer */}
+      <View style={styles.footer}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} />
         ) : (
           <>
+            {/* Primary CTA - Aspirational */}
             <TouchableOpacity
               style={[styles.primaryButton, purchasing && styles.buttonDisabled]}
               onPress={handleStartTrial}
               disabled={purchasing}
+              activeOpacity={0.85}
             >
-              {purchasing ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.primaryButtonText}>
-                  {selectedPlan === 'yearly' 
-                    ? `Start ${yearlyTrialDays}-day free trial`
-                    : `Subscribe for ${monthlyPrice.price}/mo`}
-                </Text>
-              )}
+              <LinearGradient
+                colors={[COLORS.primary, '#8B5CF6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradientButton}
+              >
+                {purchasing ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>{challengeCopy.cta}</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                  </>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
 
+            {/* Restore */}
             <TouchableOpacity onPress={handleRestore} disabled={purchasing} style={styles.restoreButton}>
-              <Text style={styles.linkText}>Restore Purchases</Text>
+              <Text style={styles.restoreText}>Already unlocked? Restore</Text>
             </TouchableOpacity>
 
+            {/* Legal */}
             <Text style={styles.legalText}>
-              {selectedPlan === 'yearly' 
-                ? `${yearlyTrialDays}-day free trial, then ${yearlyPrice.price}/year. Cancel anytime.`
-                : `Billed ${monthlyPrice.price} today, then monthly. Cancel anytime.`}
+              {selectedPlan === 'yearly' && trialDays > 0
+                ? `${trialDays}-day free trial, then ${yearlyPrice.price}/year. Cancel anytime.`
+                : `${selectedPlan === 'yearly' ? yearlyPrice.price + '/year' : monthlyPrice.price + '/month'}. Cancel anytime.`}
             </Text>
             
             <View style={styles.legalLinks}>
@@ -564,16 +374,6 @@ export default function OnboardingPaywall() {
           </>
         )}
       </View>
-    </Animated.View>
-  );
-
-  return (
-    <View style={styles.container}>
-      {renderStepIndicator()}
-      
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
     </View>
   );
 }
@@ -582,186 +382,125 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingTop: 60,
-  },
-  stepIndicator: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  stepDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E5E7EB',
-  },
-  stepDotActive: {
-    width: 24,
-    backgroundColor: COLORS.primary,
-  },
-  stepDotComplete: {
-    backgroundColor: '#10B981',
-  },
-  stepWrapper: {
-    flex: 1,
-  },
-  stepScrollView: {
-    flex: 1,
-  },
-  stepScrollContent: {
     paddingHorizontal: 24,
     paddingBottom: 20,
+  },
+  header: {
     alignItems: 'center',
+    marginBottom: 24,
   },
   iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  stepTitle: {
+  title: {
     fontSize: 28,
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  stepSubtitle: {
-    fontSize: 17,
+  subtitle: {
+    fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 32,
+    lineHeight: 24,
+    paddingHorizontal: 10,
   },
-  benefitsList: {
-    width: '100%',
-    gap: 16,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  benefitText: {
-    fontSize: 17,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeline: {
-    width: '100%',
-    paddingLeft: 8,
-  },
-  timelineItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  timelineDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timelineDotActive: {
-    backgroundColor: COLORS.primary,
-  },
-  timelineContent: {
-    flex: 1,
-  },
-  timelineDay: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  timelineText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  timelineLine: {
-    width: 2,
-    height: 24,
-    backgroundColor: '#E5E7EB',
-    marginLeft: 17,
-    marginVertical: 4,
-  },
-  trustRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 24,
-  },
-  trustText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  
-  // Plan Selector Styles
-  planSelector: {
-    width: '100%',
-    gap: 12,
-    marginBottom: 24,
-  },
-  planOption: {
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+  // Social proof
+  socialProof: {
+    backgroundColor: '#F0FDF4',
     borderRadius: 16,
     padding: 16,
-    position: 'relative',
+    marginBottom: 20,
+    alignItems: 'center',
   },
-  planOptionSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#F5F3FF',
+  socialProofText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#065F46',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  badgeRow: {
-    position: 'absolute',
-    top: -10,
-    right: 16,
+  socialProofRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
-  savingsBadge: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  socialProofSubtext: {
+    fontSize: 14,
+    color: '#6B7280',
   },
-  savingsBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+  // Plan card
+  planCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  trialBadge: {
+  planCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#EEF2FF',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  bestValueBadge: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 8,
+  },
+  trialBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  savingsBadge: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   trialBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
   },
-  planOptionSecondary: {
-    opacity: 0.9,
-  },
-  noTrialText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginLeft: 'auto',
+  savingsBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   planHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   radioCircle: {
     width: 24,
@@ -771,6 +510,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
   radioCircleSelected: {
     borderColor: COLORS.primary,
@@ -781,149 +521,120 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: COLORS.primary,
   },
+  planInfo: {
+    flex: 1,
+  },
   planName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#374151',
-  },
-  planNameSelected: {
-    color: COLORS.primary,
+    color: '#111827',
   },
   productTitle: {
     fontSize: 12,
     color: '#6B7280',
-    marginLeft: 36,
-    marginTop: 2,
     fontStyle: 'italic',
+    marginTop: 2,
   },
-  planPricing: {
+  priceSection: {
     flexDirection: 'row',
     alignItems: 'baseline',
     marginLeft: 36,
   },
-  planPrice: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  planPriceLarge: {
+  priceLarge: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#111827',
-  },
-  planPriceSelected: {
     color: COLORS.primary,
   },
-  planPeriod: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginLeft: 2,
-  },
-  planPeriodLarge: {
+  pricePeriod: {
     fontSize: 18,
     color: '#6B7280',
     marginLeft: 4,
   },
-  planBilled: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginLeft: 36,
-    marginTop: 4,
-  },
-  planEquivalent: {
+  priceSubtext: {
     fontSize: 14,
     color: '#10B981',
     fontWeight: '600',
     marginLeft: 36,
     marginTop: 4,
   },
-  planTrialNote: {
+  trialNote: {
     fontSize: 12,
     color: '#9CA3AF',
     marginLeft: 36,
-    marginTop: 2,
+    marginTop: 8,
   },
-  
-  achievementCard: {
-    width: '100%',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 16,
+  // Monthly option
+  monthlyOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
-    marginBottom: 24,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    marginBottom: 20,
   },
-  achievementLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#10B981',
-    marginBottom: 12,
+  monthlyOptionSelected: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
   },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  taskText: {
+  monthlyText: {
+    fontSize: 14,
+    color: '#6B7280',
     flex: 1,
-    fontSize: 15,
-    color: '#374151',
   },
-  featuresGrid: {
+  // Trust section
+  trustSection: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 24,
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 8,
   },
-  featureItem: {
+  trustItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  featureText: {
+  trustText: {
     fontSize: 13,
     color: '#6B7280',
-    fontWeight: '500',
   },
-  fixedFooter: {
-    paddingHorizontal: 24,
-    paddingBottom: 50,
-    paddingTop: 16,
-  },
-  fixedFooterLarge: {
-    paddingHorizontal: 24,
-    paddingBottom: 50,
-    paddingTop: 16,
-    gap: 12,
+  // Footer
+  footer: {
+    padding: 24,
+    paddingBottom: 40,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   primaryButton: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.primary,
     borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    overflow: 'hidden',
+    marginBottom: 14,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
+  gradientButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+  },
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   restoreButton: {
     alignItems: 'center',
-    paddingVertical: 12,
+    marginBottom: 14,
   },
-  linkText: {
+  restoreText: {
     color: '#6B7280',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
-  },
-  _unused: {
-    color: '#D1D5DB',
-    marginHorizontal: 16,
   },
   legalText: {
     fontSize: 12,

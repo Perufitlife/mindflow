@@ -1,4 +1,4 @@
-// app/output.tsx - Output Screen with Task Management
+// app/output.tsx - Output Screen with Task Management & Preview Mode
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,17 +11,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withDelay, withSpring, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import * as Sentry from '../sentry-stub';
 import Confetti from '../components/Confetti';
 import TaskChecklist from '../components/TaskChecklist';
 import UnbindLogo from '../components/UnbindLogo';
+import { BlurredCard, UnlockCTA } from '../components/BlurredCard';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
-import { trackTaskCompleted, trackTaskAdded, trackTaskRemoved } from '../services/analytics';
+import { trackTaskCompleted, trackTaskAdded, trackTaskRemoved, trackOutputPreviewShown, trackBlurTapped, trackUnlockCTATapped } from '../services/analytics';
 import { MicroTask } from '../services/openai';
 import { saveEntry, updateEntry } from '../services/storage';
 import { incrementSessionCount, shouldShowPaywall, hasCompletedOnboarding } from '../services/user';
+import { getChallengeCopy } from '../config/challenge-copy';
 import posthog from '../posthog';
 
 export default function OutputScreen() {
@@ -34,7 +36,7 @@ export default function OutputScreen() {
     blocker?: string;
     mood?: string;
     tasks?: string;
-    insight?: string; // NEW: Coach insight
+    insight?: string;
   }>();
 
   const [saved, setSaved] = useState(false);
@@ -44,21 +46,39 @@ export default function OutputScreen() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFirstTaskCTA, setShowFirstTaskCTA] = useState(true);
   
+  // Preview mode state
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [userChallenge, setUserChallenge] = useState<string | null>(null);
+  
   // Animation values
   const celebrationScale = useSharedValue(0.5);
   const celebrationOpacity = useSharedValue(0);
 
-  // Load user name
+  // Load user name and check preview mode
   useEffect(() => {
-    async function loadUserName() {
+    async function loadUserData() {
       try {
-        const name = await AsyncStorage.getItem('@user_name');
+        const [name, challenge, onboardingDone] = await Promise.all([
+          AsyncStorage.getItem('@user_name'),
+          AsyncStorage.getItem('@user_challenge'),
+          hasCompletedOnboarding(),
+        ]);
+        
         if (name) setUserName(name);
+        if (challenge) setUserChallenge(challenge);
+        
+        // Preview mode for first-time users (onboarding not completed)
+        const shouldShowPreview = !onboardingDone;
+        setIsPreviewMode(shouldShowPreview);
+        
+        if (shouldShowPreview) {
+          trackOutputPreviewShown(tasks.length, challenge || 'unknown');
+        }
       } catch (e) {
-        console.error('Error loading user name:', e);
+        console.error('Error loading user data:', e);
       }
     }
-    loadUserName();
+    loadUserData();
   }, []);
 
   // Parse tasks from params
@@ -106,7 +126,6 @@ export default function OutputScreen() {
       );
       celebrationOpacity.value = withTiming(1, { duration: 300 });
       
-      // Track
       posthog.capture('output_celebration_shown');
 
       Sentry.Native.addBreadcrumb({
@@ -152,30 +171,49 @@ export default function OutputScreen() {
     trackTaskRemoved();
   };
 
+  // Navigate to paywall
+  const goToPaywall = () => {
+    trackUnlockCTATapped(userChallenge || 'unknown');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    router.replace({
+      pathname: '/(onboarding)/paywall',
+      params: {
+        transcript: params.transcript || '',
+        tasks: params.tasks || '[]',
+        mood: params.mood || '',
+        taskCount: String(tasks.length),
+      },
+    });
+  };
+
+  // Handle blur tap
+  const handleBlurTap = (section: string) => {
+    trackBlurTapped(section);
+    goToPaywall();
+  };
+
   async function handleContinue() {
     try {
-      // Update saved entry with current tasks
       if (entryId) {
         await updateEntry(entryId, { tasks });
       }
 
-      // Check if this is the first session (onboarding not completed)
       const onboardingDone = await hasCompletedOnboarding();
       
       if (!onboardingDone) {
-        // First session - go directly to paywall (commitment was already done in onboarding)
         router.replace({
           pathname: '/(onboarding)/paywall',
           params: {
             transcript: params.transcript || '',
             tasks: params.tasks || '[]',
             mood: params.mood || '',
+            taskCount: String(tasks.length),
           },
         });
         return;
       }
 
-      // Regular flow for returning users
       const paywallResult = await shouldShowPaywall();
 
       if (paywallResult.show) {
@@ -193,7 +231,6 @@ export default function OutputScreen() {
     } catch (error) {
       console.error('Error in handleContinue:', error);
       Sentry.Native.captureException(error);
-      // Navigate home even if there's an error
       router.replace('/(tabs)');
     }
   }
@@ -212,8 +249,12 @@ export default function OutputScreen() {
   };
 
   const totalTime = tasks.reduce((sum, t) => sum + t.duration, 0);
+  const challengeCopy = getChallengeCopy(userChallenge);
+  
+  // In preview mode, only show first 2 tasks
+  const visibleTasks = isPreviewMode ? tasks.slice(0, 2) : tasks;
+  const hiddenTasksCount = isPreviewMode ? Math.max(0, tasks.length - 2) : 0;
 
-  // Celebration animation style
   const celebrationStyle = useAnimatedStyle(() => ({
     transform: [{ scale: celebrationScale.value }],
     opacity: celebrationOpacity.value,
@@ -228,13 +269,11 @@ export default function OutputScreen() {
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setShowFirstTaskCTA(false);
-      // Could navigate to a focus timer screen if implemented
     }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Confetti Celebration */}
       <Confetti isActive={showConfetti} count={60} duration={3500} />
       
       <ScrollView
@@ -242,7 +281,7 @@ export default function OutputScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Success Animation */}
+        {/* Header - Always Visible */}
         <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>
@@ -259,7 +298,7 @@ export default function OutputScreen() {
           <UnbindLogo size={40} animation="success" showGlow />
         </Animated.View>
 
-        {/* Celebration Card */}
+        {/* Celebration Card - Always Visible (AHA moment) */}
         {saved && (
           <Animated.View style={[styles.celebrationCard, celebrationStyle]}>
             <Text style={styles.celebrationEmoji}>🎉</Text>
@@ -272,8 +311,18 @@ export default function OutputScreen() {
           </Animated.View>
         )}
 
-        {/* First Task CTA */}
-        {showFirstTaskCTA && tasks.length > 0 && !tasks[0].completed && (
+        {/* Mood Card - Always Visible */}
+        <Animated.View entering={FadeIn.delay(200).duration(500)}>
+          <View style={[styles.moodCard, { backgroundColor: colors.primaryLight }]}>
+            <Text style={styles.moodEmoji}>{getMoodEmoji(params.mood || '')}</Text>
+            <View style={styles.moodTextContainer}>
+              <Text style={[styles.moodText, { color: colors.text }]}>{params.mood || 'Processing...'}</Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* First 2 Tasks - Always Visible */}
+        {!isPreviewMode && showFirstTaskCTA && tasks.length > 0 && !tasks[0].completed && (
           <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.firstTaskCTA}>
             <View style={styles.firstTaskHeader}>
               <Ionicons name="rocket" size={24} color="#10B981" />
@@ -289,43 +338,52 @@ export default function OutputScreen() {
           </Animated.View>
         )}
 
-        {/* Mood Card */}
-        <Animated.View entering={FadeIn.delay(200).duration(500)}>
-          <View style={[styles.moodCard, { backgroundColor: colors.primaryLight }]}>
-            <Text style={styles.moodEmoji}>{getMoodEmoji(params.mood || '')}</Text>
-            <View style={styles.moodTextContainer}>
-              <Text style={[styles.moodText, { color: colors.text }]}>{params.mood || 'Processing...'}</Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* Insight Card - Premium Coach Observation */}
-        {params.insight && (
-          <Animated.View entering={FadeIn.delay(300).duration(500)}>
-            <View style={[styles.insightCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
-              <View style={styles.insightHeader}>
-                <View style={styles.insightIconContainer}>
-                  <Ionicons name="sparkles" size={18} color={colors.primary} />
-                </View>
-                <Text style={[styles.insightLabel, { color: colors.primary }]}>Coach Insight</Text>
-              </View>
-              <Text style={[styles.insightText, { color: colors.text }]}>"{params.insight}"</Text>
-            </View>
+        {/* Preview Mode: Personalized hint before blurred content */}
+        {isPreviewMode && userChallenge && (
+          <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.personalizedHint}>
+            <Text style={styles.hintText}>{challengeCopy.insight_prefix}</Text>
           </Animated.View>
         )}
 
-        {/* Blocker Card */}
-        {params.blocker && (
-          <View style={[styles.blockerCard, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}>
-            <View style={styles.blockerHeader}>
-              <Ionicons name="warning-outline" size={20} color={colors.error} />
-              <Text style={[styles.blockerTitle, { color: colors.error }]}>{t('output.blocker')}</Text>
-            </View>
-            <Text style={[styles.blockerText, { color: colors.error }]}>{params.blocker}</Text>
-          </View>
+        {/* Coach Insight - BLURRED in preview mode */}
+        {params.insight && (
+          <Animated.View entering={FadeIn.delay(300).duration(500)}>
+            <BlurredCard
+              isLocked={isPreviewMode}
+              onUnlock={() => handleBlurTap('insight')}
+              unlockText="Unlock coach insight"
+            >
+              <View style={[styles.insightCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+                <View style={styles.insightHeader}>
+                  <View style={styles.insightIconContainer}>
+                    <Ionicons name="sparkles" size={18} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.insightLabel, { color: colors.primary }]}>Coach Insight</Text>
+                </View>
+                <Text style={[styles.insightText, { color: colors.text }]}>"{params.insight}"</Text>
+              </View>
+            </BlurredCard>
+          </Animated.View>
         )}
 
-        {/* Micro-actions Card */}
+        {/* Blocker Card - BLURRED in preview mode */}
+        {params.blocker && (
+          <BlurredCard
+            isLocked={isPreviewMode}
+            onUnlock={() => handleBlurTap('blocker')}
+            unlockText="See your blocker"
+          >
+            <View style={[styles.blockerCard, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}>
+              <View style={styles.blockerHeader}>
+                <Ionicons name="warning-outline" size={20} color={colors.error} />
+                <Text style={[styles.blockerTitle, { color: colors.error }]}>{t('output.blocker')}</Text>
+              </View>
+              <Text style={[styles.blockerText, { color: colors.error }]}>{params.blocker}</Text>
+            </View>
+          </BlurredCard>
+        )}
+
+        {/* Micro-actions Card - Partially visible in preview */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
@@ -338,27 +396,59 @@ export default function OutputScreen() {
           </View>
           <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>{t('output.micro_actions_sub')}</Text>
 
+          {/* Show only first 2 tasks in preview mode */}
           <TaskChecklist
-            tasks={tasks}
-            onToggleTask={handleToggleTask}
+            tasks={visibleTasks}
+            onToggleTask={isPreviewMode ? () => handleBlurTap('tasks') : handleToggleTask}
             onAddTask={handleAddTask}
             onRemoveTask={handleRemoveTask}
-            editable={true}
-            showProgress={true}
+            editable={!isPreviewMode}
+            showProgress={!isPreviewMode}
           />
+          
+          {/* Hidden tasks indicator in preview mode */}
+          {isPreviewMode && hiddenTasksCount > 0 && (
+            <TouchableOpacity 
+              style={styles.hiddenTasksIndicator}
+              onPress={() => handleBlurTap('tasks')}
+            >
+              <Ionicons name="lock-closed" size={16} color="#6366F1" />
+              <Text style={styles.hiddenTasksText}>
+                +{hiddenTasksCount} more task{hiddenTasksCount > 1 ? 's' : ''} locked
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="#6366F1" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Summary Card */}
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="document-text-outline" size={20} color={colors.textMuted} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>{t('output.summary')}</Text>
+        {/* Summary Card - BLURRED in preview mode */}
+        <BlurredCard
+          isLocked={isPreviewMode}
+          onUnlock={() => handleBlurTap('summary')}
+          unlockText="Read full summary"
+        >
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="document-text-outline" size={20} color={colors.textMuted} />
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('output.summary')}</Text>
+            </View>
+            <Text style={[styles.cardContent, { color: colors.textSecondary }]}>{params.summary}</Text>
           </View>
-          <Text style={[styles.cardContent, { color: colors.textSecondary }]}>{params.summary}</Text>
-        </View>
+        </BlurredCard>
 
-        {/* Transcript (collapsible) */}
-        {params.transcript && (
+        {/* Unlock CTA - Only in preview mode */}
+        {isPreviewMode && (
+          <Animated.View entering={FadeIn.delay(600).duration(500)}>
+            <UnlockCTA
+              onPress={goToPaywall}
+              text="See Your Complete Action Plan"
+              userName={userName}
+            />
+          </Animated.View>
+        )}
+
+        {/* Transcript - HIDDEN in preview mode */}
+        {!isPreviewMode && params.transcript && (
           <View style={[styles.transcriptCard, { backgroundColor: colors.backgroundSecondary }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="mic-outline" size={20} color={colors.textMuted} />
@@ -371,9 +461,14 @@ export default function OutputScreen() {
 
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
-        <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.text }]} onPress={handleContinue}>
-          <Text style={[styles.primaryButtonText, { color: colors.background }]}>{t('output.save_continue')}</Text>
-          <Ionicons name="arrow-forward" size={20} color={colors.background} />
+        <TouchableOpacity 
+          style={[styles.primaryButton, { backgroundColor: isPreviewMode ? colors.primary : colors.text }]} 
+          onPress={isPreviewMode ? goToPaywall : handleContinue}
+        >
+          <Text style={[styles.primaryButtonText, { color: '#FFFFFF' }]}>
+            {isPreviewMode ? challengeCopy.cta : t('output.save_continue')}
+          </Text>
+          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -433,7 +528,21 @@ const styles = StyleSheet.create({
     color: '#111827',
     textTransform: 'capitalize',
   },
-  // Insight Card Styles (Premium Coach)
+  // Personalized hint for preview mode
+  personalizedHint: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  hintText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#92400E',
+    fontStyle: 'italic',
+  },
   insightCard: {
     backgroundColor: '#EEF2FF',
     borderRadius: 16,
@@ -574,7 +683,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Celebration Card Styles
   celebrationCard: {
     backgroundColor: '#D1FAE5',
     borderRadius: 20,
@@ -600,7 +708,6 @@ const styles = StyleSheet.create({
     color: '#047857',
     textAlign: 'center',
   },
-  // First Task CTA Styles
   firstTaskCTA: {
     backgroundColor: '#ECFDF5',
     borderRadius: 16,
@@ -640,5 +747,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Hidden tasks indicator
+  hiddenTasksIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    marginTop: 8,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+  },
+  hiddenTasksText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6366F1',
   },
 });
