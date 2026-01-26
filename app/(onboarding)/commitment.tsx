@@ -179,13 +179,13 @@ export default function CommitmentScreen() {
     
     // Navigate after celebration
     setTimeout(() => {
-      router.replace('/(tabs)/record');
+      router.replace('/(onboarding)/when-to-use');
     }, 1500);
   };
 
   const handleSkip = () => {
     CommitmentEvents.skipped();
-    router.replace('/(tabs)/record');
+    router.replace('/(onboarding)/when-to-use');
   };
 
   // Animated styles
@@ -233,7 +233,7 @@ export default function CommitmentScreen() {
   return (
     <View style={styles.container}>
       {/* Progress Bar */}
-      <OnboardingProgressBar currentStep={6} totalSteps={6} />
+      <OnboardingProgressBar currentStep={6} totalSteps={7} />
 
       <View style={styles.content}>
         {/* Back button */}

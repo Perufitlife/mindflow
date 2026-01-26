@@ -224,15 +224,19 @@ Analyze their voice journal and provide PERSONALIZED guidance:
    - "You mentioned 'should' 3 times - that pressure might be part of the problem"
    - "It sounds like you're not lacking time, you're lacking clarity on where to start"
    - "The real issue isn't the task, it's the fear of not doing it perfectly"
-5. Micro-tasks: EXACTLY 3 tasks with this structure:
-   - Task 1 (STARTER): 2-5 minutes, ZERO friction, can do RIGHT NOW without getting up. Examples: "Write 3 bullet points", "Set a 5-min timer and just brainstorm", "Text one person about X"
-   - Task 2 (BUILDER): 10-15 minutes, builds on Task 1
-   - Task 3 (MOMENTUM): 15-25 minutes, the "real" work but feels achievable after completing 1 & 2
+5. Micro-tasks: EXACTLY 3 tasks in MICRO-DECISION FORMAT with duration in title:
+   - Task 1 (STARTER): 2-5 minutes, ZERO friction, can do RIGHT NOW. 
+     Examples: "Write 3 bullet points about the problem (3min)", "Set timer and brainstorm next steps (5min)"
+   - Task 2 (BUILDER): 10-15 minutes, builds on Task 1.
+     Examples: "Draft intro paragraph for proposal (12min)", "Outline the 3 main sections (10min)"
+   - Task 3 (MOMENTUM): 15-25 minutes, the "real" work but feels achievable after 1 & 2.
+     Examples: "Complete first section of document (20min)", "Send email with update to team (15min)"
 
-CRITICAL RULES:
+CRITICAL RULES FOR TASK FORMAT:
+- ALWAYS include duration in parentheses at the end: "(3min)", "(10min)", "(20min)"
+- Frame as SPECIFIC ACTIONS: "Send email to John about X (5min)" NOT "work on email"
 - Task 1 must be SO EASY they'd feel silly not doing it (the "just get started" trigger)
 - All tasks must address their specific ${context.challenge} issue
-- Be ULTRA-SPECIFIC: "Open Google Docs and write the first sentence of the intro" not "work on document"
 - Acknowledge their ${context.timeOfDay} energy level (morning = fresh start, evening = wind down, night = be gentle)
 
 IMPORTANT: Respond in the SAME LANGUAGE as the user's input.
@@ -244,9 +248,9 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
   "mood": "one word",
   "insight": "A powerful observation that makes them feel understood",
   "tasks": [
-    { "id": "1", "title": "2-5 min STARTER task - zero friction", "duration": 3, "completed": false },
-    { "id": "2", "title": "10-15 min BUILDER task", "duration": 12, "completed": false },
-    { "id": "3", "title": "15-25 min MOMENTUM task", "duration": 20, "completed": false }
+    { "id": "1", "title": "Write 3 bullet points about the main problem (3min)", "duration": 3, "completed": false },
+    { "id": "2", "title": "Draft outline for next steps (12min)", "duration": 12, "completed": false },
+    { "id": "3", "title": "Complete first section of the plan (20min)", "duration": 20, "completed": false }
   ]
 }`;
 

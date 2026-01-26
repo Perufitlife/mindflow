@@ -181,7 +181,7 @@ export default function PaywallScreen() {
               </View>
               <Text style={styles.title}>Your free trial{'\n'}has ended</Text>
               <Text style={styles.subtitle}>
-                Subscribe to continue beating procrastination with AI-powered micro-tasks.
+                Subscribe to continue turning mental overload into actionable micro-tasks.
               </Text>
             </>
           ) : isLimitReached ? (
@@ -201,7 +201,7 @@ export default function PaywallScreen() {
               </View>
               <Text style={styles.title}>Unlock your full{'\n'}potential</Text>
               <Text style={styles.subtitle}>
-                10 voice sessions per day. Beat procrastination every day.
+                10 voice sessions per day. From paralysis to action, every day.
               </Text>
             </>
           )}

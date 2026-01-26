@@ -311,6 +311,25 @@ export default function OutputScreen() {
           </Animated.View>
         )}
 
+        {/* Blocker Card - FIRST BLURRED ELEMENT (generates curiosity) */}
+        {params.blocker && (
+          <Animated.View entering={FadeIn.delay(250).duration(500)}>
+            <BlurredCard
+              isLocked={isPreviewMode}
+              onUnlock={() => handleBlurTap('blocker')}
+              unlockText="See what's blocking you"
+            >
+              <View style={[styles.blockerCard, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}>
+                <View style={styles.blockerHeader}>
+                  <Ionicons name="warning-outline" size={20} color={colors.error} />
+                  <Text style={[styles.blockerTitle, { color: colors.error }]}>{t('output.blocker')}</Text>
+                </View>
+                <Text style={[styles.blockerText, { color: colors.error }]}>{params.blocker}</Text>
+              </View>
+            </BlurredCard>
+          </Animated.View>
+        )}
+
         {/* Mood Card - Always Visible */}
         <Animated.View entering={FadeIn.delay(200).duration(500)}>
           <View style={[styles.moodCard, { backgroundColor: colors.primaryLight }]}>
@@ -364,23 +383,6 @@ export default function OutputScreen() {
               </View>
             </BlurredCard>
           </Animated.View>
-        )}
-
-        {/* Blocker Card - BLURRED in preview mode */}
-        {params.blocker && (
-          <BlurredCard
-            isLocked={isPreviewMode}
-            onUnlock={() => handleBlurTap('blocker')}
-            unlockText="See your blocker"
-          >
-            <View style={[styles.blockerCard, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}>
-              <View style={styles.blockerHeader}>
-                <Ionicons name="warning-outline" size={20} color={colors.error} />
-                <Text style={[styles.blockerTitle, { color: colors.error }]}>{t('output.blocker')}</Text>
-              </View>
-              <Text style={[styles.blockerText, { color: colors.error }]}>{params.blocker}</Text>
-            </View>
-          </BlurredCard>
         )}
 
         {/* Micro-actions Card - Partially visible in preview */}

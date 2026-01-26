@@ -177,8 +177,8 @@ export default function OnboardingPaywall() {
         
         const trialDays = selectedPlan === 'yearly' ? yearlyPrice.freeTrialDays : 0;
         const message = trialDays > 0 
-          ? `Your ${trialDays}-day free trial has started. Let's beat procrastination!`
-          : "You now have full access. Let's beat procrastination!";
+          ? `Your ${trialDays}-day free trial has started. Let's turn thoughts into action!`
+          : "You now have full access. Let's turn thoughts into action!";
         
         Alert.alert('Welcome to Unbind!', message, [
           { text: "Let's go!", onPress: () => router.replace('/(tabs)') }
