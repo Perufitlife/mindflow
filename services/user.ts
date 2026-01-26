@@ -7,6 +7,7 @@ const USER_KEY = '@unbind_user';
 const PREFERENCES_KEY = '@unbind_preferences';
 const TRIAL_START_KEY = '@unbind_trial_start';
 const INSTALL_DATE_KEY = '@install_date';
+const APP_OPEN_COUNT_KEY = '@unbind_app_open_count';
 
 interface UserState {
   hasCompletedOnboarding: boolean;
@@ -44,6 +45,39 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   notificationTime: null,
   language: 'en', // English as default
 };
+
+// ==================== APP OPEN TRACKING ====================
+
+/**
+ * Get the number of times the app has been opened
+ * Used for retention tracking (session_number in analytics)
+ */
+export async function getAppOpenCount(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(APP_OPEN_COUNT_KEY);
+    return raw ? Number(raw) : 0;
+  } catch (error) {
+    console.error('Error reading app open count:', error);
+    return 0;
+  }
+}
+
+/**
+ * Increment and return the app open count
+ * Call this on every app open to track session_number for retention
+ * Returns the NEW count (1 for first open, 2 for second, etc.)
+ */
+export async function incrementAppOpenCount(): Promise<number> {
+  try {
+    const current = await getAppOpenCount();
+    const next = current + 1;
+    await AsyncStorage.setItem(APP_OPEN_COUNT_KEY, String(next));
+    return next;
+  } catch (error) {
+    console.error('Error incrementing app open count:', error);
+    return 1; // Default to 1 on error (assume first open)
+  }
+}
 
 // ==================== USER STATE ====================
 

@@ -46,12 +46,12 @@ try {
 }
 
 // User state imports
-let getSessionCount: any = null;
+let incrementAppOpenCount: any = null;
 let hasCompletedOnboarding: any = null;
 let getDaysSinceInstall: any = null;
 try {
   const user = require('../services/user');
-  getSessionCount = user.getSessionCount;
+  incrementAppOpenCount = user.incrementAppOpenCount;
   hasCompletedOnboarding = user.hasCompletedOnboarding;
   getDaysSinceInstall = user.getDaysSinceInstall;
 } catch (e) {
@@ -162,9 +162,11 @@ export default function RootLayout() {
         }
 
         // Track app_opened with all critical properties for analytics
+        // session_number = number of app opens (1 = first open, 2 = second, etc.)
         try {
           if (RetentionEvents && typeof RetentionEvents.appOpened === 'function') {
-            const sessionCount = getSessionCount ? await getSessionCount() : 0;
+            // Increment and get the app open count (1 for first open)
+            const sessionNumber = incrementAppOpenCount ? await incrementAppOpenCount() : 1;
             const onboardingDone = hasCompletedOnboarding ? await hasCompletedOnboarding() : false;
             const daysSinceInstall = getDaysSinceInstall ? await getDaysSinceInstall() : 0;
             const subscriptionStatus = getCurrentSubscriptionStatus 
@@ -175,7 +177,7 @@ export default function RootLayout() {
             const deviceLocale = getDeviceLocale ? getDeviceLocale() : 'en';
 
             RetentionEvents.appOpened({
-              sessionNumber: sessionCount,
+              sessionNumber,
               daysSinceInstall,
               env,
               deviceCountry,
@@ -185,7 +187,7 @@ export default function RootLayout() {
             });
             
             console.log('[LAYOUT] app_opened tracked:', {
-              sessionNumber: sessionCount,
+              sessionNumber,
               daysSinceInstall,
               env,
               deviceCountry,
