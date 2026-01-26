@@ -175,6 +175,22 @@ export const PaywallEvents = {
       product_id: productId,
     });
   },
+
+  // Time tracking - how long user views paywall
+  timeViewed: (seconds: number) => {
+    posthog.capture('paywall_time_viewed', {
+      seconds,
+      timestamp: new Date().toISOString(),
+    });
+  },
+
+  // Exit reason tracking
+  exitPaywall: (reason: 'back_button' | 'skip' | 'purchase' | 'restore' | 'unmount') => {
+    posthog.capture('paywall_exit', {
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+  },
 };
 
 // ============================================
@@ -298,6 +314,14 @@ export const RetentionEvents = {
   favoriteRemoved: (entryId: string) => {
     posthog.capture('favorite_removed', {
       entry_id: entryId,
+    });
+  },
+
+  // Return day tracking for retention cohorts
+  returnDay: (day: 1 | 3 | 7 | 14 | 30) => {
+    posthog.capture(`return_day_${day}`, {
+      day,
+      timestamp: new Date().toISOString(),
     });
   },
 };
@@ -791,3 +815,51 @@ export const ErrorEvents = {
     });
   },
 };
+
+// ============================================
+// RETENTION DAY TRACKING HELPER
+// ============================================
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const INSTALL_DATE_KEY = '@install_date';
+const TRACKED_DAYS_KEY = '@tracked_return_days';
+
+/**
+ * Track return day for retention cohorts
+ * Call this on app startup to track D1, D3, D7, D14, D30 retention
+ */
+export async function trackReturnDay(): Promise<void> {
+  try {
+    const installDateStr = await AsyncStorage.getItem(INSTALL_DATE_KEY);
+    
+    // First time opening - save install date
+    if (!installDateStr) {
+      await AsyncStorage.setItem(INSTALL_DATE_KEY, new Date().toISOString());
+      return;
+    }
+
+    const installDate = new Date(installDateStr);
+    const now = new Date();
+    const daysSinceInstall = Math.floor(
+      (now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Get already tracked days to avoid duplicate events
+    const trackedDaysStr = await AsyncStorage.getItem(TRACKED_DAYS_KEY);
+    const trackedDays: number[] = trackedDaysStr ? JSON.parse(trackedDaysStr) : [];
+
+    // Retention milestones to track
+    const milestones = [1, 3, 7, 14, 30];
+    
+    for (const milestone of milestones) {
+      if (daysSinceInstall >= milestone && !trackedDays.includes(milestone)) {
+        RetentionEvents.returnDay(milestone as 1 | 3 | 7 | 14 | 30);
+        trackedDays.push(milestone);
+        await AsyncStorage.setItem(TRACKED_DAYS_KEY, JSON.stringify(trackedDays));
+      }
+    }
+  } catch (error) {
+    console.warn('[ANALYTICS] Failed to track return day:', error);
+  }
+}

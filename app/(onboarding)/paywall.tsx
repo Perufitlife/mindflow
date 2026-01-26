@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -67,6 +67,19 @@ export default function OnboardingPaywall() {
     freeTrialDays: 0,
     productTitle: 'Unbind Premium (Monthly)',
   });
+
+  // Track paywall view time
+  const paywallOpenTime = useRef(Date.now());
+  const exitReasonRef = useRef<'back_button' | 'skip' | 'purchase' | 'restore' | 'unmount'>('unmount');
+
+  // Track time viewed on unmount
+  useEffect(() => {
+    return () => {
+      const timeViewed = Math.round((Date.now() - paywallOpenTime.current) / 1000);
+      PaywallEvents.timeViewed(timeViewed);
+      PaywallEvents.exitPaywall(exitReasonRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     PaywallEvents.shown('onboarding');
@@ -155,6 +168,7 @@ export default function OnboardingPaywall() {
           parseFloat(pkg.product.price),
           pkg.product.currencyCode
         );
+        exitReasonRef.current = 'purchase';
         OnboardingEvents.completed(0);
         UserProperties.setSubscriptionStatus('trial');
         UserProperties.setOnboardingCompleted(true);
@@ -186,6 +200,7 @@ export default function OnboardingPaywall() {
     try {
       const result = await restorePurchases();
       if (result.isPremium) {
+        exitReasonRef.current = 'restore';
         await markOnboardingComplete();
         UserProperties.setSubscriptionStatus('premium');
         Alert.alert('Welcome Back!', 'Your subscription has been restored.', [

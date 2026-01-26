@@ -35,6 +35,13 @@ try {
   console.error('[LAYOUT] Failed to import subscriptions:', e);
 }
 
+let trackReturnDay: any = null;
+try {
+  trackReturnDay = require('../services/analytics').trackReturnDay;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import trackReturnDay:', e);
+}
+
 export default function RootLayout() {
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -106,6 +113,15 @@ export default function RootLayout() {
           }
         } else {
           console.warn('[LAYOUT] RevenueCat not available');
+        }
+
+        // Track retention day (D1, D3, D7, etc.)
+        if (trackReturnDay && typeof trackReturnDay === 'function') {
+          try {
+            await trackReturnDay();
+          } catch (retentionError) {
+            console.warn('[LAYOUT] Retention tracking error:', retentionError);
+          }
         }
 
         // Listen for auth state changes (safely)

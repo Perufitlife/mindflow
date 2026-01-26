@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -54,6 +54,19 @@ export default function PaywallScreen() {
 
   const isTrialExpired = trigger === 'trial_expired';
   const isLimitReached = trigger === 'daily_limit';
+  
+  // Track paywall view time
+  const paywallOpenTime = useRef(Date.now());
+  const exitReasonRef = useRef<'back_button' | 'skip' | 'purchase' | 'restore' | 'unmount'>('unmount');
+
+  // Track time viewed on unmount
+  useEffect(() => {
+    return () => {
+      const timeViewed = Math.round((Date.now() - paywallOpenTime.current) / 1000);
+      PaywallEvents.timeViewed(timeViewed);
+      PaywallEvents.exitPaywall(exitReasonRef.current);
+    };
+  }, []);
   
   // Get personalized copy based on challenge
   const challengeCopy = getChallengeCopy(userChallenge);
@@ -118,6 +131,7 @@ export default function PaywallScreen() {
           parseFloat(pkg.product.price),
           pkg.product.currencyCode
         );
+        exitReasonRef.current = 'purchase';
         Alert.alert(
           'Welcome to Premium! 🎉',
           'You now have full access. Let\'s get productive!',
@@ -138,6 +152,7 @@ export default function PaywallScreen() {
     try {
       const result = await restorePurchases();
       if (result.isPremium) {
+        exitReasonRef.current = 'restore';
         Alert.alert('Success', 'Your subscription has been restored!', [
           { text: 'Continue', onPress: () => router.replace('/(tabs)') },
         ]);
