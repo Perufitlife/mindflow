@@ -109,6 +109,82 @@ export async function getCustomerInfo(): Promise<CustomerInfo | null> {
 }
 
 /**
+ * Get current subscription status for analytics
+ * Returns: 'free' | 'trial' | 'premium' | 'expired'
+ */
+export async function getCurrentSubscriptionStatus(): Promise<'free' | 'trial' | 'premium' | 'expired'> {
+  // In Expo Go, RevenueCat doesn't work
+  if (isExpoGo) {
+    // Check local trial status as fallback
+    return await getLocalSubscriptionStatus();
+  }
+
+  if (!isInitialized) {
+    return await getLocalSubscriptionStatus();
+  }
+
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    const isPremium = customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] !== undefined;
+
+    if (isPremium) {
+      return 'premium';
+    }
+
+    // Check if user had premium but it expired
+    const allEntitlements = customerInfo?.entitlements?.all || {};
+    const premiumEntitlement = allEntitlements[ENTITLEMENT_ID];
+    if (premiumEntitlement && !premiumEntitlement.isActive) {
+      return 'expired';
+    }
+
+    // Fall back to local trial check
+    return await getLocalSubscriptionStatus();
+  } catch (error) {
+    console.warn('Failed to get subscription status:', error);
+    return await getLocalSubscriptionStatus();
+  }
+}
+
+/**
+ * Check local storage for trial/premium status (fallback)
+ */
+async function getLocalSubscriptionStatus(): Promise<'free' | 'trial' | 'premium' | 'expired'> {
+  try {
+    // Import dynamically to avoid circular dependency
+    const { getTrialStartDate, isPremiumUser } = await import('./user');
+    const { TRIAL_CONFIG } = await import('../config/revenuecat');
+
+    // Check if user is premium locally
+    const isPremium = await isPremiumUser();
+    if (isPremium) {
+      return 'premium';
+    }
+
+    // Check trial status
+    const trialStart = await getTrialStartDate();
+    if (trialStart) {
+      const trialStartDate = new Date(trialStart);
+      const now = new Date();
+      const daysSinceTrialStart = Math.floor(
+        (now.getTime() - trialStartDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      if (daysSinceTrialStart < TRIAL_CONFIG.durationDays) {
+        return 'trial';
+      } else {
+        return 'expired';
+      }
+    }
+
+    return 'free';
+  } catch (error) {
+    console.warn('Failed to get local subscription status:', error);
+    return 'free';
+  }
+}
+
+/**
  * Get available offerings (products)
  * Returns null if RevenueCat is not initialized (e.g., in Expo Go)
  */

@@ -15,6 +15,9 @@
       "distribution": "internal",
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "IS_TESTFLIGHT": "true"
       }
     },
     "production": {

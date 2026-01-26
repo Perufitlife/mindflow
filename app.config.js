@@ -17,7 +17,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.unbindapp.unbind",
-      buildNumber: "9",
+      buildNumber: "10",
       // ASO: iOS specific metadata
       infoPlist: {
         NSMicrophoneUsageDescription: "Unbind uses your microphone to record voice journals and convert them into actionable micro-tasks.",
@@ -85,6 +85,10 @@ export default {
       // Supabase config (anon key is public, safe to include)
       SUPABASE_URL: 'https://jzpfbxybfoowkdeomecd.supabase.co',
       SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6cGZieHliZm9vd2tkZW9tZWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MDk4NTAsImV4cCI6MjA4NDM4NTg1MH0.qNTdPTWDfePqGkSmZBvKRcso4Jyy-3Nh2HndRtV_YNY',
+      
+      // Flag to detect TestFlight vs App Store builds
+      // Set via EAS build profile env variables
+      isTestFlight: process.env.IS_TESTFLIGHT === 'true',
       
       eas: {
         projectId: "e980fa42-2281-4596-91dd-9d8715b2ec4e"

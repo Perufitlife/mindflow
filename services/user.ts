@@ -6,6 +6,7 @@ import { getCurrentSession } from './auth';
 const USER_KEY = '@unbind_user';
 const PREFERENCES_KEY = '@unbind_preferences';
 const TRIAL_START_KEY = '@unbind_trial_start';
+const INSTALL_DATE_KEY = '@install_date';
 
 interface UserState {
   hasCompletedOnboarding: boolean;
@@ -353,6 +354,50 @@ export async function saveNotificationSettings(
     notificationsEnabled: enabled,
     notificationTime: time || null,
   });
+}
+
+// ==================== INSTALL DATE TRACKING ====================
+
+/**
+ * Get the install date, creating it if it doesn't exist
+ * This is used for retention tracking (D1, D3, D7, etc.)
+ */
+export async function getInstallDate(): Promise<string> {
+  try {
+    let installDate = await AsyncStorage.getItem(INSTALL_DATE_KEY);
+    
+    if (!installDate) {
+      // First time - set install date to now
+      installDate = new Date().toISOString();
+      await AsyncStorage.setItem(INSTALL_DATE_KEY, installDate);
+    }
+    
+    return installDate;
+  } catch (error) {
+    console.error('Error getting install date:', error);
+    // Return current date as fallback
+    return new Date().toISOString();
+  }
+}
+
+/**
+ * Get days since app was installed
+ * Used for retention cohort analysis
+ */
+export async function getDaysSinceInstall(): Promise<number> {
+  try {
+    const installDateStr = await getInstallDate();
+    const installDate = new Date(installDateStr);
+    const now = new Date();
+    
+    const diffMs = now.getTime() - installDate.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
+  } catch (error) {
+    console.error('Error calculating days since install:', error);
+    return 0;
+  }
 }
 
 // ==================== STATS ====================

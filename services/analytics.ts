@@ -275,11 +275,48 @@ export const TaskEvents = {
 // RETENTION EVENTS
 // ============================================
 
+// Types for app_opened event
+export interface AppOpenedData {
+  sessionNumber: number;
+  daysSinceInstall: number;
+  env: 'prod' | 'dev';
+  deviceCountry: string;  // ISO 3166-1 alpha-2 (e.g., "CA", "US")
+  deviceLocale: string;   // BCP 47 language tag (e.g., "en-CA", "es-MX")
+  subscriptionStatus: 'free' | 'trial' | 'premium' | 'expired';
+  onboardingCompleted: boolean;
+}
+
 export const RetentionEvents = {
-  appOpened: (sessionNumber: number, daysSinceInstall: number) => {
+  /**
+   * Track app open with all critical properties for analytics
+   * This is the main event for segmentation and funnel analysis
+   * 
+   * Note: PostHog also adds $geoip_country_code server-side based on IP
+   * device_country = from device locale settings
+   * $geoip_country_code = from IP address (added by PostHog)
+   */
+  appOpened: (data: AppOpenedData) => {
+    // Capture the event with all properties
     posthog.capture('app_opened', {
-      session_number: sessionNumber,
-      days_since_install: daysSinceInstall,
+      session_number: data.sessionNumber,
+      days_since_install: data.daysSinceInstall,
+      env: data.env,
+      device_country: data.deviceCountry,
+      device_locale: data.deviceLocale,
+      subscription_status: data.subscriptionStatus,
+      onboarding_completed: data.onboardingCompleted,
+    });
+
+    // Also set as user properties for persistence across sessions
+    posthog.capture('$set', {
+      $set: {
+        subscription_status: data.subscriptionStatus,
+        onboarding_completed: data.onboardingCompleted,
+        device_country: data.deviceCountry,
+        device_locale: data.deviceLocale,
+        env: data.env,
+        last_seen: new Date().toISOString(),
+      },
     });
   },
 

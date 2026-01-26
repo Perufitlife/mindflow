@@ -36,10 +36,47 @@ try {
 }
 
 let trackReturnDay: any = null;
+let RetentionEvents: any = null;
 try {
-  trackReturnDay = require('../services/analytics').trackReturnDay;
+  const analytics = require('../services/analytics');
+  trackReturnDay = analytics.trackReturnDay;
+  RetentionEvents = analytics.RetentionEvents;
 } catch (e) {
-  console.error('[LAYOUT] Failed to import trackReturnDay:', e);
+  console.error('[LAYOUT] Failed to import analytics:', e);
+}
+
+// User state imports
+let getSessionCount: any = null;
+let hasCompletedOnboarding: any = null;
+let getDaysSinceInstall: any = null;
+try {
+  const user = require('../services/user');
+  getSessionCount = user.getSessionCount;
+  hasCompletedOnboarding = user.hasCompletedOnboarding;
+  getDaysSinceInstall = user.getDaysSinceInstall;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import user:', e);
+}
+
+// Environment config
+let getEnvironment: any = null;
+let getDeviceCountry: any = null;
+let getDeviceLocale: any = null;
+try {
+  const envConfig = require('../config/env');
+  getEnvironment = envConfig.getEnvironment;
+  getDeviceCountry = envConfig.getDeviceCountry;
+  getDeviceLocale = envConfig.getDeviceLocale;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import env config:', e);
+}
+
+// Subscription status
+let getCurrentSubscriptionStatus: any = null;
+try {
+  getCurrentSubscriptionStatus = require('../services/subscriptions').getCurrentSubscriptionStatus;
+} catch (e) {
+  console.error('[LAYOUT] Failed to import getCurrentSubscriptionStatus:', e);
 }
 
 export default function RootLayout() {
@@ -122,6 +159,43 @@ export default function RootLayout() {
           } catch (retentionError) {
             console.warn('[LAYOUT] Retention tracking error:', retentionError);
           }
+        }
+
+        // Track app_opened with all critical properties for analytics
+        try {
+          if (RetentionEvents && typeof RetentionEvents.appOpened === 'function') {
+            const sessionCount = getSessionCount ? await getSessionCount() : 0;
+            const onboardingDone = hasCompletedOnboarding ? await hasCompletedOnboarding() : false;
+            const daysSinceInstall = getDaysSinceInstall ? await getDaysSinceInstall() : 0;
+            const subscriptionStatus = getCurrentSubscriptionStatus 
+              ? await getCurrentSubscriptionStatus() 
+              : 'free';
+            const env = getEnvironment ? getEnvironment() : 'dev';
+            const deviceCountry = getDeviceCountry ? getDeviceCountry() : 'XX';
+            const deviceLocale = getDeviceLocale ? getDeviceLocale() : 'en';
+
+            RetentionEvents.appOpened({
+              sessionNumber: sessionCount,
+              daysSinceInstall,
+              env,
+              deviceCountry,
+              deviceLocale,
+              subscriptionStatus,
+              onboardingCompleted: onboardingDone,
+            });
+            
+            console.log('[LAYOUT] app_opened tracked:', {
+              sessionNumber: sessionCount,
+              daysSinceInstall,
+              env,
+              deviceCountry,
+              deviceLocale,
+              subscriptionStatus,
+              onboardingCompleted: onboardingDone,
+            });
+          }
+        } catch (appOpenedError) {
+          console.warn('[LAYOUT] app_opened tracking error:', appOpenedError);
         }
 
         // Listen for auth state changes (safely)
