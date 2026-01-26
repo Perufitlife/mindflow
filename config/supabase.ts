@@ -7,8 +7,13 @@ import { Platform } from 'react-native';
 const supabaseUrl = Constants.expoConfig?.extra?.SUPABASE_URL || '';
 const supabaseAnonKey = Constants.expoConfig?.extra?.SUPABASE_ANON_KEY || '';
 
+// Check if we're in a server/static rendering context
+const isSSR = Platform.OS === 'web' && typeof window === 'undefined';
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase URL or Anon Key not configured');
+  if (!isSSR) {
+    console.warn('Supabase URL or Anon Key not configured');
+  }
 }
 
 // Custom storage that handles web SSR (where window is not defined)
@@ -33,14 +38,20 @@ const customStorage = {
   },
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: customStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+// Use placeholder URL for SSR to avoid crash during static rendering
+const effectiveUrl = supabaseUrl || (isSSR ? 'https://placeholder.supabase.co' : '');
+const effectiveKey = supabaseAnonKey || (isSSR ? 'placeholder-key' : '');
+
+export const supabase = effectiveUrl && effectiveKey 
+  ? createClient(effectiveUrl, effectiveKey, {
+      auth: {
+        storage: customStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    })
+  : null as any; // Null client when not configured (will be handled by calling code)
 
 // Export config for Edge Function calls
 export const SUPABASE_URL = supabaseUrl;
