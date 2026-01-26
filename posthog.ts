@@ -23,4 +23,28 @@ try {
   } as any;
 }
 
+// Identify user for cross-platform tracking (syncs with RevenueCat)
+export function identifyUser(userId: string, properties?: Record<string, any>) {
+  try {
+    if (client && typeof client.identify === 'function') {
+      client.identify(userId, properties);
+      console.log('[POSTHOG] User identified:', userId);
+    }
+  } catch (error) {
+    console.warn('[POSTHOG] Failed to identify user:', error);
+  }
+}
+
+// Reset user identity (on logout)
+export function resetUser() {
+  try {
+    if (client && typeof client.reset === 'function') {
+      client.reset();
+      console.log('[POSTHOG] User reset');
+    }
+  } catch (error) {
+    console.warn('[POSTHOG] Failed to reset user:', error);
+  }
+}
+
 export default client;
