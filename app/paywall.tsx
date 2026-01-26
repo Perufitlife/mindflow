@@ -30,8 +30,8 @@ import {
   trackPaywallShown,
   trackPaywallSubscribeClicked,
   trackPaywallChallengeShown,
+  PaywallEvents,
 } from '../services/analytics';
-import posthog from '../posthog';
 
 type PlanType = 'yearly' | 'monthly';
 
@@ -108,11 +108,16 @@ export default function PaywallScreen() {
 
     setPurchasing(true);
     trackPaywallSubscribeClicked(selectedPlan);
+    PaywallEvents.purchaseInitiated(pkg.product.identifier, parseFloat(pkg.product.price));
 
     try {
       const result = await purchasePackage(pkg);
       if (result.success) {
-        posthog.capture('subscription_success', { plan: selectedPlan, trigger: trigger || 'manual' });
+        PaywallEvents.purchaseCompleted(
+          pkg.product.identifier,
+          parseFloat(pkg.product.price),
+          pkg.product.currencyCode
+        );
         Alert.alert(
           'Welcome to Premium! 🎉',
           'You now have full access. Let\'s get productive!',

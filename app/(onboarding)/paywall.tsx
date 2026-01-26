@@ -146,9 +146,15 @@ export default function OnboardingPaywall() {
     
     try {
       PaywallEvents.trialStarted();
+      PaywallEvents.purchaseInitiated(pkg.product.identifier, parseFloat(pkg.product.price));
       const result = await purchasePackage(pkg);
       
       if (result.success) {
+        PaywallEvents.purchaseCompleted(
+          pkg.product.identifier,
+          parseFloat(pkg.product.price),
+          pkg.product.currencyCode
+        );
         OnboardingEvents.completed(0);
         UserProperties.setSubscriptionStatus('trial');
         UserProperties.setOnboardingCompleted(true);
