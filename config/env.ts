@@ -36,7 +36,8 @@ export function getEnvironment(): 'prod' | 'dev' {
 // DEVICE COUNTRY/REGION
 // ============================================
 
-import * as Localization from 'expo-localization';
+// Using JavaScript Intl API instead of expo-localization
+// This avoids iOS 18 SDK compatibility issues with expo-localization
 
 /**
  * Get the user's device country/region code
@@ -48,15 +49,29 @@ import * as Localization from 'expo-localization';
  */
 export function getDeviceCountry(): string {
   try {
-    // Try to get region from locales array (more reliable)
-    const locales = Localization.getLocales();
-    if (locales && locales.length > 0 && locales[0].regionCode) {
-      return locales[0].regionCode;
+    // Use Intl API to get locale info
+    const locale = getDeviceLocale();
+    
+    // Extract region from locale (e.g., "en-CA" -> "CA", "es-MX" -> "MX")
+    if (locale.includes('-')) {
+      const parts = locale.split('-');
+      const region = parts[parts.length - 1];
+      // Region codes are typically 2 uppercase letters
+      if (region && region.length === 2) {
+        return region.toUpperCase();
+      }
     }
     
-    // Fallback to region property
-    if (Localization.region) {
-      return Localization.region;
+    // Try to get from Intl.Locale if available
+    if (typeof Intl !== 'undefined' && Intl.Locale) {
+      try {
+        const intlLocale = new Intl.Locale(locale);
+        if (intlLocale.region) {
+          return intlLocale.region.toUpperCase();
+        }
+      } catch {
+        // Intl.Locale not supported or invalid locale
+      }
     }
     
     return 'XX'; // Unknown
@@ -68,13 +83,23 @@ export function getDeviceCountry(): string {
 
 /**
  * Get the user's device locale (e.g., "en-CA", "es-MX")
+ * Uses React Native's Intl API
  */
 export function getDeviceLocale(): string {
   try {
-    const locales = Localization.getLocales();
-    if (locales && locales.length > 0) {
-      return locales[0].languageTag || 'en';
+    // Get locales from Intl API (works in React Native)
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const resolvedOptions = Intl.DateTimeFormat().resolvedOptions();
+      if (resolvedOptions.locale) {
+        return resolvedOptions.locale;
+      }
     }
+    
+    // Fallback: try navigator.language (for web)
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      return navigator.language;
+    }
+    
     return 'en';
   } catch (error) {
     console.warn('Failed to get device locale:', error);
