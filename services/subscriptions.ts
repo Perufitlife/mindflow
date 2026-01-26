@@ -7,8 +7,9 @@ import Purchases, {
   PurchasesPackage,
 } from 'react-native-purchases';
 import { Platform } from 'react-native';
-import { REVENUECAT_API_KEY, ENTITLEMENT_ID, OFFERING_ID, isExpoGo } from '../config/revenuecat';
+import { REVENUECAT_API_KEY, ENTITLEMENT_ID, OFFERING_ID, isExpoGo, PRODUCTS } from '../config/revenuecat';
 import posthog from '../posthog';
+import type { SubscriptionStatus } from './analytics';
 
 let isInitialized = false;
 
@@ -110,9 +111,9 @@ export async function getCustomerInfo(): Promise<CustomerInfo | null> {
 
 /**
  * Get current subscription status for analytics
- * Returns: 'free' | 'trial' | 'premium' | 'expired'
+ * Returns granular status: free, trial_local, trial_appstore, premium_monthly, premium_annual, expired
  */
-export async function getCurrentSubscriptionStatus(): Promise<'free' | 'trial' | 'premium' | 'expired'> {
+export async function getCurrentSubscriptionStatus(): Promise<SubscriptionStatus> {
   // In Expo Go, RevenueCat doesn't work
   if (isExpoGo) {
     // Check local trial status as fallback
@@ -125,10 +126,30 @@ export async function getCurrentSubscriptionStatus(): Promise<'free' | 'trial' |
 
   try {
     const customerInfo = await Purchases.getCustomerInfo();
-    const isPremium = customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] !== undefined;
+    const activeEntitlement = customerInfo?.entitlements?.active?.[ENTITLEMENT_ID];
 
-    if (isPremium) {
-      return 'premium';
+    if (activeEntitlement) {
+      // Check if user is in App Store trial period
+      // periodType: "TRIAL" means user is in free trial before first charge
+      if (activeEntitlement.periodType === 'TRIAL') {
+        return 'trial_appstore';
+      }
+
+      // Determine if monthly or annual based on product identifier
+      const productId = activeEntitlement.productIdentifier || '';
+      
+      if (productId.includes('monthly') || productId === PRODUCTS.MONTHLY) {
+        return 'premium_monthly';
+      }
+      
+      if (productId.includes('yearly') || productId.includes('annual') || productId === PRODUCTS.YEARLY) {
+        return 'premium_annual';
+      }
+
+      // Fallback for premium if we can't determine the plan type
+      // This shouldn't happen if product IDs are configured correctly
+      console.warn('Could not determine subscription type for product:', productId);
+      return 'premium_monthly'; // Default to monthly if unknown
     }
 
     // Check if user had premium but it expired
@@ -148,20 +169,22 @@ export async function getCurrentSubscriptionStatus(): Promise<'free' | 'trial' |
 
 /**
  * Check local storage for trial/premium status (fallback)
+ * Returns: free, trial_local, premium_monthly (fallback for local premium), expired
  */
-async function getLocalSubscriptionStatus(): Promise<'free' | 'trial' | 'premium' | 'expired'> {
+async function getLocalSubscriptionStatus(): Promise<SubscriptionStatus> {
   try {
     // Import dynamically to avoid circular dependency
     const { getTrialStartDate, isPremiumUser } = await import('./user');
     const { TRIAL_CONFIG } = await import('../config/revenuecat');
 
     // Check if user is premium locally
+    // Note: Local premium doesn't know monthly vs annual, default to monthly
     const isPremium = await isPremiumUser();
     if (isPremium) {
-      return 'premium';
+      return 'premium_monthly';
     }
 
-    // Check trial status
+    // Check trial status (local trial = your internal 3-day trial)
     const trialStart = await getTrialStartDate();
     if (trialStart) {
       const trialStartDate = new Date(trialStart);
@@ -171,7 +194,7 @@ async function getLocalSubscriptionStatus(): Promise<'free' | 'trial' | 'premium
       );
 
       if (daysSinceTrialStart < TRIAL_CONFIG.durationDays) {
-        return 'trial';
+        return 'trial_local';
       } else {
         return 'expired';
       }

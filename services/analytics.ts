@@ -275,6 +275,15 @@ export const TaskEvents = {
 // RETENTION EVENTS
 // ============================================
 
+// Subscription status type with granularity for analytics
+export type SubscriptionStatus = 
+  | 'free'              // Never started trial
+  | 'trial_local'       // In local 3-day trial (your internal trial)
+  | 'trial_appstore'    // In App Store free trial (before first charge)
+  | 'premium_monthly'   // Active monthly subscription
+  | 'premium_annual'    // Active annual subscription
+  | 'expired';          // Had premium/trial but expired
+
 // Types for app_opened event
 export interface AppOpenedData {
   sessionNumber: number;
@@ -282,7 +291,7 @@ export interface AppOpenedData {
   env: 'prod' | 'dev';
   deviceCountry: string;  // ISO 3166-1 alpha-2 (e.g., "CA", "US")
   deviceLocale: string;   // BCP 47 language tag (e.g., "en-CA", "es-MX")
-  subscriptionStatus: 'free' | 'trial' | 'premium' | 'expired';
+  subscriptionStatus: SubscriptionStatus;
   onboardingCompleted: boolean;
 }
 
@@ -408,7 +417,7 @@ export const EngagementEvents = {
 // ============================================
 
 export const UserProperties = {
-  setSubscriptionStatus: (status: 'free' | 'trial' | 'premium' | 'expired') => {
+  setSubscriptionStatus: (status: SubscriptionStatus) => {
     posthog.capture('$set', {
       $set: {
         subscription_status: status,
