@@ -9,6 +9,15 @@ export default function OnboardingLayout() {
         animation: 'slide_from_right',
         gestureEnabled: true,
       }}
-    />
+    >
+      {/* Paywall: disable back gesture to prevent skipping payment */}
+      <Stack.Screen
+        name="paywall"
+        options={{
+          gestureEnabled: false,
+          animation: 'fade',
+        }}
+      />
+    </Stack>
   );
 }

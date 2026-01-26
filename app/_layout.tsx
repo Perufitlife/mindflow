@@ -188,8 +188,9 @@ export default function RootLayout() {
             <Stack.Screen
               name="paywall"
               options={{
-                presentation: 'modal',
+                presentation: 'fullScreenModal',
                 animation: 'slide_from_bottom',
+                gestureEnabled: false,
               }}
             />
           </Stack>

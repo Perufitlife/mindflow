@@ -1,12 +1,20 @@
 // app/(tabs)/_layout.tsx - Tab Navigator with Theme Support
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
+import { hasCompletedOnboarding } from '../../services/user';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  
+  // Hide tab bar during first recording (before onboarding is complete)
+  const [onboardingComplete, setOnboardingComplete] = useState(true); // Default true to avoid flash
+  
+  useEffect(() => {
+    hasCompletedOnboarding().then(setOnboardingComplete);
+  }, []);
 
   return (
     <Tabs
@@ -15,6 +23,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
+          display: onboardingComplete ? 'flex' : 'none',
           backgroundColor: colors.tabBar,
           borderTopWidth: 1,
           borderTopColor: colors.border,
