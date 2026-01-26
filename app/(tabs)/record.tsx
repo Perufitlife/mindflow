@@ -26,6 +26,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { trackRecordingStarted, trackRecordingStopped, ErrorEvents } from '../../services/analytics';
 import { isExpoGo } from '../../config/revenuecat';
+import { hasCompletedOnboarding, getSessionCount } from '../../services/user';
 
 const MIN_RECORDING_SECONDS = 30;
 const SUGGESTED_RECORDING_SECONDS = 120;
@@ -79,6 +80,26 @@ export default function RecordScreen() {
   
   // Dynamic prompt - memoized to prevent changing during recording
   const dynamicPrompt = useMemo(() => getDynamicPrompt(), []);
+
+  // Check if user already completed first recording but hasn't paid
+  // This prevents infinite recordings during onboarding
+  useEffect(() => {
+    async function checkFirstSessionStatus() {
+      try {
+        const onboardingDone = await hasCompletedOnboarding();
+        if (!onboardingDone) {
+          const sessionCount = await getSessionCount();
+          if (sessionCount > 0) {
+            // User already made first recording but hasn't paid - redirect to paywall
+            router.replace('/(onboarding)/paywall');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking session status:', error);
+      }
+    }
+    checkFirstSessionStatus();
+  }, []);
 
   // Animations
   const scale = useSharedValue(1);
@@ -394,7 +415,9 @@ export default function RecordScreen() {
       level: 'info',
     });
 
-    router.push({
+    // Use replace to remove record screen from history
+    // This prevents users from going back to record and making infinite recordings
+    router.replace({
       pathname: '/processing',
       params: { audioUri: uri || '' },
     });
