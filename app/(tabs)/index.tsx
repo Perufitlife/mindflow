@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import SessionJourneyList from '../../components/SessionJourneyList';
 import StreakCard from '../../components/StreakCard';
 import TaskChecklist from '../../components/TaskChecklist';
 import Tutorial from '../../components/Tutorial';
@@ -22,6 +23,7 @@ import { MicroTask } from '../../services/openai';
 import {
   calculateStreak,
   getAllPendingTasks,
+  getEntries,
   getLatestEntry,
   JournalEntry,
   toggleTaskComplete,
@@ -45,6 +47,7 @@ export default function HomeScreen() {
   const [streak, setStreak] = useState(0);
   const [pendingTasks, setPendingTasks] = useState<PendingTaskWithMeta[]>([]);
   const [dailyUsage, setDailyUsage] = useState({ used: 0, max: 1 }); // Free: 1/day, Premium: 10/day
+  const [recentEntries, setRecentEntries] = useState<JournalEntry[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,17 +79,19 @@ export default function HomeScreen() {
 
   async function loadData() {
     try {
-      const [entry, count, streakCount, pending] = await Promise.all([
+      const [entry, count, streakCount, pending, entries] = await Promise.all([
         getLatestEntry(),
         getSessionCount(),
         calculateStreak(),
         getAllPendingTasks(),
+        getEntries(),
       ]);
 
       setLastEntry(entry);
       setSessionCount(count);
       setStreak(streakCount);
       setPendingTasks(pending.slice(0, 3)); // Show only first 3 pending tasks
+      setRecentEntries(entries.slice(0, 7)); // Last 7 sessions for journey list
 
       // Load daily usage from Supabase
       const user = await getCurrentUser();
@@ -192,6 +197,13 @@ export default function HomeScreen() {
         {sessionCount > 0 && (
           <Animated.View entering={FadeInUp.delay(300).duration(500)} style={styles.streakSection}>
             <StreakCard streak={streak} lastSessionDate={lastEntry?.date} />
+          </Animated.View>
+        )}
+
+        {/* Session Journey List - Shows progress over time */}
+        {recentEntries.length > 0 && (
+          <Animated.View entering={FadeInUp.delay(350).duration(500)} style={styles.journeySection}>
+            <SessionJourneyList entries={recentEntries} maxItems={5} />
           </Animated.View>
         )}
 
@@ -378,6 +390,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   streakSection: {
+    marginBottom: 16,
+  },
+  journeySection: {
     marginBottom: 16,
   },
   statsContainer: {
