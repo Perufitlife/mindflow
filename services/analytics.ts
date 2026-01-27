@@ -51,6 +51,10 @@ export const OnboardingEvents = {
       total_time_seconds: totalTimeSeconds,
       completed_at: new Date().toISOString(),
     });
+    // Persist onboarding_completed as user property
+    posthog.capture('$set', {
+      $set: { onboarding_completed: true },
+    });
   },
 
   // Individual screen events
@@ -140,6 +144,10 @@ export const PaywallEvents = {
       price_id: priceId,
       started_at: new Date().toISOString(),
     });
+    // Persist subscription_status as user property
+    posthog.capture('$set', {
+      $set: { subscription_status: 'trial_local' },
+    });
   },
 
   trialRemindLater: () => {
@@ -155,11 +163,20 @@ export const PaywallEvents = {
   },
 
   purchaseCompleted: (productId: string, price: number, currency: string) => {
+    // Determine if monthly or annual based on productId
+    const isAnnual = productId.includes('yearly') || productId.includes('annual');
+    const subscriptionStatus = isAnnual ? 'premium_annual' : 'premium_monthly';
+
     posthog.capture('purchase_completed', {
       product_id: productId,
       price,
       currency,
       revenue: price,
+      subscription_status: subscriptionStatus,
+    });
+    // Persist subscription_status as user property
+    posthog.capture('$set', {
+      $set: { subscription_status: subscriptionStatus },
     });
   },
 
@@ -316,7 +333,17 @@ export const RetentionEvents = {
       onboarding_completed: data.onboardingCompleted,
     });
 
-    // Also set as user properties for persistence across sessions
+    // Set immutable properties (only first time, never overwritten)
+    posthog.capture('$set_once', {
+      $set_once: {
+        install_country: data.deviceCountry,
+        install_locale: data.deviceLocale,
+        first_env: data.env,
+        install_date: new Date().toISOString(),
+      },
+    });
+
+    // Set mutable user properties for persistence across sessions
     posthog.capture('$set', {
       $set: {
         subscription_status: data.subscriptionStatus,
@@ -324,6 +351,7 @@ export const RetentionEvents = {
         device_country: data.deviceCountry,
         device_locale: data.deviceLocale,
         env: data.env,
+        session_number: data.sessionNumber,
         last_seen: new Date().toISOString(),
       },
     });

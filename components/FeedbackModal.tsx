@@ -17,6 +17,8 @@ import {
 import { COLORS } from '../constants/brand';
 import { useTheme } from '../contexts/ThemeContext';
 import posthog from '../posthog';
+import { getCurrentSession } from '../services/auth';
+import { SUPABASE_URL } from '../config/supabase';
 
 interface FeedbackModalProps {
   visible: boolean;
@@ -47,23 +49,52 @@ export default function FeedbackModal({ visible, onClose }: FeedbackModalProps) 
     setIsSubmitting(true);
 
     try {
-      // Track feedback in PostHog
+      // Get session for auth (optional - allows anonymous feedback)
+      const session = await getCurrentSession();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      // Call Edge Function to send email via Zoho SMTP
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/submit-feedback`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: feedbackType,
+          message: message.trim(),
+          email: email.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to submit feedback');
+      }
+
+      // Track feedback in PostHog (keep existing analytics)
       posthog.capture('feedback_submitted', {
         type: feedbackType,
         message_length: message.length,
         has_email: email.length > 0,
       });
 
-      // In production, this would send to your backend
-      // For now, we just capture in analytics and show success
-      
       Alert.alert(
         'Thank you! 🙏',
         'Your feedback has been received. We read every message and it helps us improve Unbind.',
         [{ text: 'OK', onPress: handleClose }]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to submit feedback. Please try again.');
+      console.error('Feedback submission error:', error);
+      Alert.alert(
+        'Error',
+        error instanceof Error && error.message
+          ? `Failed to submit feedback: ${error.message}`
+          : 'Failed to submit feedback. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
