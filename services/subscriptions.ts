@@ -94,6 +94,26 @@ export async function checkPremiumStatus(): Promise<boolean> {
 }
 
 /**
+ * Sync premium status from RevenueCat to local storage
+ * Call this on app startup to ensure local state is up to date
+ */
+export async function syncPremiumStatus(): Promise<void> {
+  if (isExpoGo || !isInitialized) {
+    return;
+  }
+
+  try {
+    const isPremium = await checkPremiumStatus();
+    const { setPremiumStatus } = await import('./user');
+    await setPremiumStatus(isPremium);
+    console.log('[SYNC] Premium status synced to local storage:', isPremium);
+  } catch (error) {
+    console.warn('[SYNC] Failed to sync premium status:', error);
+    // Don't throw - this is a background sync operation
+  }
+}
+
+/**
  * Get customer info
  */
 export async function getCustomerInfo(): Promise<CustomerInfo | null> {
@@ -266,6 +286,16 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<{
         price: pkg.product.price,
       });
       
+      // Sync premium status to local storage
+      try {
+        const { setPremiumStatus } = await import('./user');
+        await setPremiumStatus(true);
+        console.log('Premium status synced to local storage');
+      } catch (syncError) {
+        console.warn('Failed to sync premium status:', syncError);
+        // Don't fail the purchase if sync fails
+      }
+      
       console.log('Purchase successful!');
       return { success: true, customerInfo };
     }
@@ -302,6 +332,16 @@ export async function restorePurchases(): Promise<{
     
     const customerInfo = await Purchases.restorePurchases();
     const isPremium = customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] !== undefined;
+    
+    // Sync premium status to local storage
+    try {
+      const { setPremiumStatus } = await import('./user');
+      await setPremiumStatus(isPremium);
+      console.log('Premium status synced to local storage after restore:', isPremium);
+    } catch (syncError) {
+      console.warn('Failed to sync premium status:', syncError);
+      // Don't fail the restore if sync fails
+    }
     
     posthog.capture('purchases_restored', { isPremium });
     

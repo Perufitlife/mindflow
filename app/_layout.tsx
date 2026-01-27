@@ -144,6 +144,15 @@ export default function RootLayout() {
             console.log('[LAYOUT] Initializing RevenueCat...');
             await initializeRevenueCat();
             console.log('[LAYOUT] RevenueCat initialized');
+            
+            // Sync premium status from RevenueCat to local storage
+            try {
+              const { syncPremiumStatus } = await import('../services/subscriptions');
+              await syncPremiumStatus();
+            } catch (syncError) {
+              console.warn('[LAYOUT] Premium status sync error:', syncError);
+              // Don't crash if sync fails
+            }
           } catch (rcError) {
             console.error('[LAYOUT] RevenueCat init error:', rcError);
             // Don't crash, continue without RevenueCat

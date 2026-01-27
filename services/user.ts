@@ -204,7 +204,28 @@ export async function shouldShowPaywall(): Promise<{
     sessionsToday = state.dailySessionCount;
   }
 
-  if (state.isPremium) {
+  // Check RevenueCat premium status (real source of truth)
+  let revenueCatIsPremium = false;
+  try {
+    const { checkPremiumStatus } = await import('./subscriptions');
+    revenueCatIsPremium = await checkPremiumStatus();
+  } catch (error) {
+    console.warn('Failed to check RevenueCat premium:', error);
+  }
+
+  // Use RevenueCat as source of truth if available (prioritize RevenueCat)
+  // If RevenueCat says premium, trust it even if local says false
+  const actualIsPremium = revenueCatIsPremium || state.isPremium;
+
+  if (actualIsPremium) {
+    // Also sync the local state if RevenueCat says premium but local doesn't
+    if (revenueCatIsPremium && !state.isPremium) {
+      try {
+        await updateUserState({ isPremium: true });
+      } catch (syncError) {
+        console.warn('Failed to sync premium status:', syncError);
+      }
+    }
     return { show: false, trigger: '', sessionsToday, maxSessions };
   }
 
